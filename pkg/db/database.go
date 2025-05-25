@@ -6,8 +6,8 @@ import (
 	"time"
 
 	dbsql "database/sql"
-	"gophernet/ent"
 	"gophernet/pkg/config"
+	"gophernet/pkg/db/ent"
 	"gophernet/pkg/shutdown"
 
 	"entgo.io/ent/dialect"
@@ -33,7 +33,7 @@ func NewDatabase(ctx context.Context, dbConfig *config.Database) Database {
 		panic("database config cannot be nil")
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s",
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		dbConfig.Host,
 		dbConfig.Port,
 		dbConfig.User,

@@ -18,10 +18,10 @@ func LoadConfig(path string) *Config {
 		panic(fmt.Errorf("failed to read config file: %w", err))
 	}
 
-	// Unmarshal the config into our Database struct
+	// Unmarshal the config into our Config struct
 	var config Config
-	if err := v.UnmarshalKey("database", &config); err != nil {
-		panic(fmt.Errorf("failed to unmarshal database config: %w", err))
+	if err := v.Unmarshal(&config); err != nil {
+		panic(fmt.Errorf("failed to unmarshal config: %w", err))
 	}
 
 	return &config
