@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"gophernet/pkg/app"
+	"gophernet/pkg/cache"
 	"gophernet/pkg/config"
 	controller "gophernet/pkg/controller"
 	"gophernet/pkg/db"
@@ -15,20 +19,35 @@ import (
 func main() {
 	log.Println("Starting GopherNet server...")
 
-	// Create new server
-	log.Println("Loading configuration...")
-	config := config.LoadConfigFromDefaultPath()
+	// Initialize database
+	database := db.NewDatabase(context.Background(), &config.DefaultDatabase)
+	defer database.Close()
 
-	log.Println("Initializing database connection...")
-	db := db.NewDatabase(context.Background(), &config.Database)
+	// Initialize repository
+	burrowRepo := repo.NewBurrowRepository(database)
 
-	log.Println("Setting up repositories and controllers...")
-	burrowRepo := repo.NewBurrowRepository(db)
-	gopherApp := app.NewGopherApp(burrowRepo)
-	api := controller.NewGopherController(gopherApp)
+	// Initialize cache
+	stats := cache.NewBurrowStats()
+
+	// Initialize app
+	gopherApp := app.NewGopherApp(burrowRepo, stats)
+
+	// Create context that listens for the interrupt signal
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Start the scheduler
+	gopherApp.StartScheduler(ctx)
+
+	// Wait for interrupt signal
+	<-ctx.Done()
+	log.Println("Shutting down...")
+
+	// Stop the scheduler
+	gopherApp.StopScheduler()
 
 	log.Println("Starting HTTP server...")
-	server := server.NewServer(api)
+	server := server.NewServer(controller.NewGopherController(gopherApp))
 	server.ServeHTTP()
 
 	log.Println("Server exiting")
