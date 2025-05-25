@@ -21,5 +21,38 @@
 go.work
 go.work.sum
 
-# env file
+# Environment files
 .env
+.env.*
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Build output
+bin/
+dist/
+build/
+
+# Log files
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Generated files
+ent/
+*.gen.go
+*.pb.go
+
+# Debug files
+debug
+debug.test
+
+# Local development files
+*.local
+local.*
