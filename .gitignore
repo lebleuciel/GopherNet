@@ -56,3 +56,6 @@ debug.test
 # Local development files
 *.local
 local.*
+
+# Reports directory
+reports/

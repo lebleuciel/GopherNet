@@ -43,19 +43,20 @@ func (s *Scheduler) Start(ctx context.Context) {
 		log.Printf("Error loading initial burrows: %v", err)
 	}
 
-	reportTicker := time.NewTicker(10 * time.Minute)
-	defer reportTicker.Stop()
+	reportTicker := time.NewTicker(2 * time.Minute)
 
 	go func() {
+		defer reportTicker.Stop()
 		for {
 			select {
+			case <-reportTicker.C:
+				log.Printf("generating report")
+				if err := s.generateReport(); err != nil {
+					log.Printf("Error generating report: %v", err)
+				}
 			case <-s.ticker.C:
 				if err := s.updateBurrows(ctx); err != nil {
 					log.Printf("Error updating burrows: %v", err)
-				}
-			case <-reportTicker.C:
-				if err := s.generateReport(); err != nil {
-					log.Printf("Error generating report: %v", err)
 				}
 			case <-s.done:
 				s.ticker.Stop()
@@ -72,16 +73,18 @@ func (s *Scheduler) Stop() {
 }
 
 func (s *Scheduler) generateReport() error {
+	log.Printf("starting report")
 	totalDepth, availableBurrows, largest, smallest := s.stats.GetStats()
+	log.Printf("starting report", totalDepth, availableBurrows, largest, smallest)
 
+	// Ensure reports directory exists
 	if err := os.MkdirAll("reports", 0755); err != nil {
+		log.Printf("Failed to create reports directory: %v", err)
 		return fmt.Errorf("failed to create reports directory: %v", err)
 	}
 
-	// Generate filename with timestamp
 	filename := filepath.Join("reports", fmt.Sprintf("burrow_report_%s.txt", time.Now().Format("2006-01-02_15-04-05")))
 
-	// Create report content
 	report := fmt.Sprintf(`Burrow System Report
 Generated at: %s
 
@@ -95,11 +98,11 @@ Smallest Burrow Depth: %.2f meters
 		largest,
 		smallest)
 
-	// Write report to file
+	log.Printf("Writing report to %s...", filename)
 	if err := os.WriteFile(filename, []byte(report), 0644); err != nil {
+		log.Printf("Failed to write report: %v", err)
 		return fmt.Errorf("failed to write report: %v", err)
 	}
-
 	log.Printf("Report generated: %s", filename)
 	return nil
 }
@@ -111,6 +114,8 @@ func (s *Scheduler) updateBurrows(ctx context.Context) error {
 		return err
 	}
 
+	log.Printf("Updating %d burrows...", len(burrows))
+
 	// Update each burrow
 	for _, b := range burrows {
 		// Check if burrow is 25 days old
@@ -120,6 +125,7 @@ func (s *Scheduler) updateBurrows(ctx context.Context) error {
 				log.Printf("Error deleting old burrow %d: %v", b.ID, err)
 				continue
 			}
+			log.Printf("Deleted old burrow %d (age: %d)", b.ID, b.Age)
 			if b.Depth == smallest {
 				s.updateSmallestBurrow(ctx)
 			}
@@ -135,6 +141,8 @@ func (s *Scheduler) updateBurrows(ctx context.Context) error {
 			log.Printf("Error updating burrow %d: %v", b.ID, err)
 			continue
 		}
+
+		log.Printf("Updated burrow %d: depth %.2f -> %.2f", b.ID, b.Depth, newDepth)
 
 		// Update stats cache
 		s.stats.AddDepth(0.009)

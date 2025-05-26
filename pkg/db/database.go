@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	dbsql "database/sql"
@@ -65,6 +66,16 @@ func NewDatabase(ctx context.Context, dbConfig *config.Database) Database {
 	}
 
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
+
+	// Run schema SQL
+	schemaSQL, err := os.ReadFile("pkg/db/schema.sql")
+	if err != nil {
+		panic(fmt.Errorf("reading schema SQL: %w", err))
+	}
+
+	if _, err := db.ExecContext(ctx, string(schemaSQL)); err != nil {
+		panic(fmt.Errorf("executing schema SQL: %w", err))
+	}
 
 	// Create ent driver
 	driver := sql.OpenDB(dialect.Postgres, db)
