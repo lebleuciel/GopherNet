@@ -14,7 +14,15 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 DB_PORT=5432
 
-.PHONY: all build clean test run dev deps db-create db-drop db-reset
+# Docker parameters
+DOCKER_COMPOSE=docker-compose
+DOCKER=docker
+
+# Mock parameters
+MOCKGEN=mockgen
+MOCK_DIR=pkg/mocks
+
+.PHONY: all build clean test run dev deps db-create db-drop db-reset docker-build docker-up docker-down docker-logs docker-clean install-mockgen generate-mocks
 
 all: clean build
 
@@ -52,6 +60,31 @@ db-reset: db-drop db-create
 swagger:
 	swag init -g cmd/main/main.go -o docs
 
+# Docker commands
+docker-build:
+	$(DOCKER_COMPOSE) build
+
+docker-up:
+	$(DOCKER_COMPOSE) up -d
+
+docker-down:
+	$(DOCKER_COMPOSE) down
+
+docker-logs:
+	$(DOCKER_COMPOSE) logs -f
+
+docker-clean:
+	$(DOCKER_COMPOSE) down -v
+	$(DOCKER) system prune -f
+
+# Mock commands
+install-mockgen:
+	$(GOGET) github.com/golang/mock/mockgen@latest
+
+generate-mocks:
+	@mkdir -p $(MOCK_DIR)
+	$(MOCKGEN) -source=pkg/repo/burrow.go -destination=$(MOCK_DIR)/burrow_mock.go -package=mocks
+
 # Help command
 help:
 	@echo "Available commands:"
@@ -64,4 +97,11 @@ help:
 	@echo "  make db-create  - Create database"
 	@echo "  make db-drop    - Drop database"
 	@echo "  make db-reset   - Reset database (drop and create)"
-	@echo "  make swagger    - Generate Swagger documentation" 
+	@echo "  make swagger    - Generate Swagger documentation"
+	@echo "  make docker-build - Build Docker images"
+	@echo "  make docker-up    - Start Docker containers"
+	@echo "  make docker-down  - Stop Docker containers"
+	@echo "  make docker-logs  - View Docker container logs"
+	@echo "  make docker-clean - Clean up Docker resources"
+	@echo "  make install-mockgen - Install mockgen tool"
+	@echo "  make generate-mocks  - Generate mock files" 
