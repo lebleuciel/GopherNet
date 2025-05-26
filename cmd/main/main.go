@@ -38,16 +38,16 @@ func main() {
 	// Start the scheduler
 	gopherApp.StartScheduler(ctx)
 
+	// Initialize and start HTTP server
+	server := server.NewServer(controller.NewGopherController(gopherApp))
+	go server.ServeHTTP()
+
 	// Wait for interrupt signal
 	<-ctx.Done()
 	log.Println("Shutting down...")
 
 	// Stop the scheduler
 	gopherApp.StopScheduler()
-
-	log.Println("Starting HTTP server...")
-	server := server.NewServer(controller.NewGopherController(gopherApp))
-	server.ServeHTTP()
 
 	log.Println("Server exiting")
 }
