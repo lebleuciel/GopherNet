@@ -1,0 +1,31 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Output
+/build
+/dist
+
+# VCS
+.git
+.gitignore
+
+# IDE/editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Dependency cache
+vendor/
+
+# Local config
+.env 
