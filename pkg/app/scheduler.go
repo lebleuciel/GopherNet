@@ -10,17 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"gophernet/pkg/config"
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/dto"
 	"gophernet/pkg/repo"
 	"gophernet/pkg/utils"
-)
-
-const (
-	reportInterval = 2 * time.Minute
-	updateInterval = 1 * time.Minute
-	maxBurrowAge   = 1440 // 24 hours in minutes
-	depthIncrement = 0.009
 )
 
 // Scheduler manages periodic tasks for burrow maintenance and reporting
@@ -28,6 +22,7 @@ type Scheduler struct {
 	repo   repo.IBurrowRepository
 	ticker *time.Ticker
 	done   chan bool
+	config *config.Scheduler
 }
 
 // BurrowStats holds the statistical information about the burrow system
@@ -41,11 +36,15 @@ type BurrowStats struct {
 }
 
 // NewScheduler creates a new scheduler instance
-func NewScheduler(repo repo.IBurrowRepository) *Scheduler {
+func NewScheduler(repo repo.IBurrowRepository, cfg *config.Scheduler) *Scheduler {
+	if cfg == nil {
+		cfg = &config.DefaultScheduler
+	}
 	return &Scheduler{
 		repo:   repo,
-		ticker: time.NewTicker(updateInterval),
+		ticker: time.NewTicker(cfg.UpdateInterval),
 		done:   make(chan bool),
+		config: cfg,
 	}
 }
 
@@ -55,7 +54,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 		log.Printf("Error initializing system: %v", err)
 	}
 
-	reportTicker := time.NewTicker(reportInterval)
+	reportTicker := time.NewTicker(s.config.ReportInterval)
 	go s.runPeriodicTasks(ctx, reportTicker)
 	log.Println("Scheduler started")
 }
@@ -182,7 +181,7 @@ func (s *Scheduler) handleOldBurrow(ctx context.Context, b *ent.Burrow) error {
 
 // updateBurrowDepth increases a burrow's depth
 func (s *Scheduler) updateBurrowDepth(ctx context.Context, b *ent.Burrow) error {
-	newDepth := b.Depth + depthIncrement
+	newDepth := b.Depth + s.config.DepthIncrement
 	if err := s.repo.UpdateBurrowDepth(ctx, int64(b.ID), newDepth); err != nil {
 		return fmt.Errorf("error updating burrow %d: %w", b.ID, err)
 	}
@@ -200,7 +199,7 @@ func (s *Scheduler) updateBurrows(ctx context.Context) error {
 	log.Printf("Updating %d burrows...", len(burrows))
 
 	for _, b := range burrows {
-		if b.Age >= maxBurrowAge {
+		if b.Age >= s.config.MaxBurrowAge {
 			if err := s.handleOldBurrow(ctx, b); err != nil {
 				log.Printf("%v", err)
 				continue

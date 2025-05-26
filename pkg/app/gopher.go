@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"gophernet/pkg/config"
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/repo"
 )
@@ -21,12 +22,14 @@ type IGopherApp interface {
 type GopherApp struct {
 	repo      repo.IBurrowRepository
 	scheduler *Scheduler
+	config    *config.Scheduler
 }
 
-func NewGopherApp(repo repo.IBurrowRepository) *GopherApp {
+func NewGopherApp(repo repo.IBurrowRepository, cfg *config.Scheduler) *GopherApp {
 	return &GopherApp{
 		repo:      repo,
-		scheduler: NewScheduler(repo),
+		scheduler: NewScheduler(repo, cfg),
+		config:    cfg,
 	}
 }
 
