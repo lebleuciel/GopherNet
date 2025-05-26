@@ -26,7 +26,7 @@ func NewGopherController(gopherApp app.IGopherApp) *GopherController {
 }
 
 func (g *GopherController) GetGopher(c *gin.Context) {
-	g.gopherApp.GetGopher()
+	g.gopherApp.GetGopher(c.Request.Context())
 	c.String(http.StatusOK, "Gopher says hi!")
 }
 

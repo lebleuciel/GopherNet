@@ -2,14 +2,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"gophernet/pkg/cache"
+
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/repo"
 )
 
 type IGopherApp interface {
-	GetGopher() string
+	GetGopher(ctx context.Context) (string, error)
 	StartScheduler(ctx context.Context)
 	StopScheduler()
 	RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, error)
@@ -19,20 +20,18 @@ type IGopherApp interface {
 
 type GopherApp struct {
 	repo      repo.IBurrowRepository
-	stats     cache.IBurrowStats
 	scheduler *Scheduler
 }
 
-func NewGopherApp(repo repo.IBurrowRepository, stats cache.IBurrowStats) *GopherApp {
+func NewGopherApp(repo repo.IBurrowRepository) *GopherApp {
 	return &GopherApp{
 		repo:      repo,
-		stats:     stats,
-		scheduler: NewScheduler(repo, stats),
+		scheduler: NewScheduler(repo),
 	}
 }
 
-func (g *GopherApp) GetGopher() string {
-	return "gopher"
+func (g *GopherApp) GetGopher(ctx context.Context) (string, error) {
+	return "Gopher is ready to help!", nil
 }
 
 func (g *GopherApp) StartScheduler(ctx context.Context) {
@@ -42,21 +41,20 @@ func (g *GopherApp) StartScheduler(ctx context.Context) {
 func (g *GopherApp) StopScheduler() {
 	g.scheduler.Stop()
 }
-
 func (g *GopherApp) RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, error) {
 	burrow, err := g.repo.GetBurrowByID(ctx, burrowID)
 	if err != nil {
-		return nil, fmt.Errorf("burrow with ID %d not found: %w", burrowID, err)
+		return nil, fmt.Errorf("failed to get burrow: %w", err)
 	}
 
 	if burrow.IsOccupied {
-		return nil, fmt.Errorf("burrow %d is already occupied", burrowID)
+		return nil, errors.New("burrow is already occupied")
 	}
 
 	if err := g.repo.UpdateBurrowOccupancy(ctx, burrowID, true); err != nil {
-		return nil, fmt.Errorf("failed to update burrow %d occupancy: %w", burrowID, err)
+		return nil, fmt.Errorf("failed to update burrow occupancy: %w", err)
 	}
-	g.stats.SubtractAvailableBurrow()
+
 	burrow.IsOccupied = true
 	return burrow, nil
 }
@@ -64,22 +62,25 @@ func (g *GopherApp) RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, 
 func (g *GopherApp) ReleaseBurrow(ctx context.Context, burrowID int) (*ent.Burrow, error) {
 	burrow, err := g.repo.GetBurrowByID(ctx, burrowID)
 	if err != nil {
-		return nil, fmt.Errorf("burrow with ID %d not found: %w", burrowID, err)
+		return nil, fmt.Errorf("failed to get burrow: %w", err)
 	}
 
 	if !burrow.IsOccupied {
-		return nil, fmt.Errorf("burrow %d is not occupied", burrowID)
+		return nil, errors.New("burrow is not occupied")
 	}
 
 	if err := g.repo.UpdateBurrowOccupancy(ctx, burrowID, false); err != nil {
-		return nil, fmt.Errorf("failed to update burrow %d occupancy: %w", burrowID, err)
+		return nil, fmt.Errorf("failed to update burrow occupancy: %w", err)
 	}
 
-	g.stats.AddAvailableBurrow()
 	burrow.IsOccupied = false
 	return burrow, nil
 }
 
 func (g *GopherApp) GetBurrowStatus(ctx context.Context) ([]*ent.Burrow, error) {
-	return g.repo.GetAllBurrows(ctx)
+	burrows, err := g.repo.GetAllBurrows(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get burrows: %w", err)
+	}
+	return burrows, nil
 }

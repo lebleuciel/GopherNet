@@ -15,6 +15,7 @@ type IBurrowRepository interface {
 	UpdateBurrowDepth(ctx context.Context, id int64, depth float64) error
 	DeleteBurrow(ctx context.Context, id int64) error
 	CreateBurrow(ctx context.Context, name string, depth float64, width float64, isOccupied bool, age int) (*ent.Burrow, error)
+	CreateBurrows(ctx context.Context, burrows []*ent.Burrow) ([]*ent.Burrow, error)
 	DeleteAllBurrows(ctx context.Context) error
 }
 
@@ -76,4 +77,17 @@ func (r *BurrowRepository) UpdateBurrowOccupancy(ctx context.Context, id int, is
 		SetIsOccupied(isOccupied).
 		Save(ctx)
 	return err
+}
+
+func (r *BurrowRepository) CreateBurrows(ctx context.Context, burrows []*ent.Burrow) ([]*ent.Burrow, error) {
+	bulk := make([]*ent.BurrowCreate, len(burrows))
+	for i, b := range burrows {
+		bulk[i] = r.db.EntClient().Burrow.Create().
+			SetName(b.Name).
+			SetDepth(b.Depth).
+			SetWidth(b.Width).
+			SetIsOccupied(b.IsOccupied).
+			SetAge(b.Age)
+	}
+	return r.db.EntClient().Burrow.CreateBulk(bulk...).Save(ctx)
 }

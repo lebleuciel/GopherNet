@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"gophernet/pkg/app"
-	"gophernet/pkg/cache"
 	"gophernet/pkg/config"
 	controller "gophernet/pkg/controller"
 	"gophernet/pkg/db"
@@ -26,27 +25,23 @@ func main() {
 	// Initialize repository
 	burrowRepo := repo.NewBurrowRepository(database)
 
-	// Initialize cache
-	stats := cache.NewBurrowStats()
-
 	// Initialize app
-	gopherApp := app.NewGopherApp(burrowRepo, stats)
+	gopherApp := app.NewGopherApp(burrowRepo)
 
 	// Create context that listens for the interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// Start the scheduler
-	gopherApp.StartScheduler(ctx)
-
-	// Wait for interrupt signal
+	// Start the scheduler
+	gopherApp.StartScheduler(ctx) // Wait for interrupt signal
 	<-ctx.Done()
 	log.Println("Shutting down...")
 
 	// Stop the scheduler
 	gopherApp.StopScheduler()
 
-	log.Println("Starting HTTP server...")
+	log.Println("Starting HTTP server...") ///////
 	server := server.NewServer(controller.NewGopherController(gopherApp))
 	server.ServeHTTP()
 
