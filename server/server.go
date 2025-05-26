@@ -49,6 +49,14 @@ func (s *Server) registerRoutes() {
 	v1 := s.engine.Group("/api/v1")
 	{
 		v1.GET("/gopher", s.handler.GetGopher)
+
+		// Burrow routes
+		burrowRoutes := v1.Group("/burrows")
+		{
+			burrowRoutes.POST("/:id/rent", s.handler.RentBurrow)
+			burrowRoutes.POST("/:id/release", s.handler.ReleaseBurrow)
+			burrowRoutes.GET("/status", s.handler.GetBurrowStatus)
+		}
 	}
 }
 

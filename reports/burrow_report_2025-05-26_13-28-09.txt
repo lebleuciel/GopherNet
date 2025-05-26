@@ -1,7 +1,0 @@
-Burrow System Report
-Generated at: 2025-05-26 13:28:09
-
-Total Depth: 11.24 meters
-Available Burrows: 0
-Largest Burrow Depth: 0.00 meters
-Smallest Burrow Depth: -1.00 meters

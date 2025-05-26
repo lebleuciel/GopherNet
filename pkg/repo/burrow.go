@@ -8,10 +8,14 @@ import (
 )
 
 type IBurrowRepository interface {
+	GetAllBurrows(ctx context.Context) ([]*ent.Burrow, error)
 	GetOccupiedBurrows(ctx context.Context) ([]*ent.Burrow, error)
+	GetBurrowByID(ctx context.Context, id int) (*ent.Burrow, error)
+	UpdateBurrowOccupancy(ctx context.Context, id int, isOccupied bool) error
 	UpdateBurrowDepth(ctx context.Context, id int64, depth float64) error
 	DeleteBurrow(ctx context.Context, id int64) error
 	CreateBurrow(ctx context.Context, name string, depth float64, width float64, isOccupied bool, age int) (*ent.Burrow, error)
+	DeleteAllBurrows(ctx context.Context) error
 }
 
 type BurrowRepository struct {
@@ -52,4 +56,24 @@ func (r *BurrowRepository) CreateBurrow(ctx context.Context, name string, depth 
 		SetIsOccupied(isOccupied).
 		SetAge(age).
 		Save(ctx)
+}
+
+func (r *BurrowRepository) DeleteAllBurrows(ctx context.Context) error {
+	_, err := r.db.EntClient().Burrow.Delete().Exec(ctx)
+	return err
+}
+
+func (r *BurrowRepository) GetAllBurrows(ctx context.Context) ([]*ent.Burrow, error) {
+	return r.db.EntClient().Burrow.Query().All(ctx)
+}
+
+func (r *BurrowRepository) GetBurrowByID(ctx context.Context, id int) (*ent.Burrow, error) {
+	return r.db.EntClient().Burrow.Get(ctx, id)
+}
+
+func (r *BurrowRepository) UpdateBurrowOccupancy(ctx context.Context, id int, isOccupied bool) error {
+	_, err := r.db.EntClient().Burrow.UpdateOneID(id).
+		SetIsOccupied(isOccupied).
+		Save(ctx)
+	return err
 }
