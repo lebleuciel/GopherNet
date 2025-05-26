@@ -16,70 +16,21 @@ import (
 	"gophernet/pkg/utils"
 )
 
+const (
+	reportInterval = 2 * time.Minute
+	updateInterval = 1 * time.Minute
+	maxBurrowAge   = 1440 // 24 hours in minutes
+	depthIncrement = 0.009
+)
+
+// Scheduler manages periodic tasks for burrow maintenance and reporting
 type Scheduler struct {
 	repo   repo.IBurrowRepository
 	ticker *time.Ticker
 	done   chan bool
 }
 
-type InitialBurrow struct {
-	Name       string  `json:"name"`
-	Depth      float64 `json:"depth"`
-	Width      float64 `json:"width"`
-	IsOccupied bool    `json:"occupied"`
-	Age        int     `json:"age"`
-}
-
-func NewScheduler(repo repo.IBurrowRepository) *Scheduler {
-	return &Scheduler{
-		repo:   repo,
-		ticker: time.NewTicker(1 * time.Minute),
-		done:   make(chan bool),
-	}
-}
-
-func (s *Scheduler) Start(ctx context.Context) {
-	//TODO: Remove later,added for testing purposes
-	// Clear database
-	if err := s.repo.DeleteAllBurrows(ctx); err != nil {
-		log.Printf("Error clearing database: %v", err)
-	}
-
-	// Load initial burrows
-	if err := s.loadInitialBurrows(ctx); err != nil {
-		log.Printf("Error loading initial burrows: %v", err)
-	}
-
-	reportTicker := time.NewTicker(2 * time.Minute)
-
-	go func() {
-		defer reportTicker.Stop()
-		for {
-			select {
-			case <-reportTicker.C:
-				log.Printf("Generating report")
-				if err := s.generateReport(); err != nil {
-					log.Printf("Error generating report: %v", err)
-				}
-			case <-s.ticker.C:
-				if err := s.updateBurrows(ctx); err != nil {
-					log.Printf("Error updating burrows: %v", err)
-				}
-			case <-s.done:
-				s.ticker.Stop()
-				return
-			}
-		}
-	}()
-	log.Println("Scheduler started")
-}
-
-func (s *Scheduler) Stop() {
-	s.done <- true
-	log.Println("Scheduler stopped")
-}
-
-// BurrowStats represents the statistics of a burrow system
+// BurrowStats holds the statistical information about the burrow system
 type BurrowStats struct {
 	TotalDepth     float64
 	LargestVolume  float64
@@ -89,7 +40,61 @@ type BurrowStats struct {
 	AvailableCount int
 }
 
-// calculateBurrowStats calculates statistics for all burrows
+// NewScheduler creates a new scheduler instance
+func NewScheduler(repo repo.IBurrowRepository) *Scheduler {
+	return &Scheduler{
+		repo:   repo,
+		ticker: time.NewTicker(updateInterval),
+		done:   make(chan bool),
+	}
+}
+
+// Start begins the scheduler's periodic tasks
+func (s *Scheduler) Start(ctx context.Context) {
+	if err := s.initializeSystem(ctx); err != nil {
+		log.Printf("Error initializing system: %v", err)
+	}
+
+	reportTicker := time.NewTicker(reportInterval)
+	go s.runPeriodicTasks(ctx, reportTicker)
+	log.Println("Scheduler started")
+}
+
+// Stop gracefully shuts down the scheduler
+func (s *Scheduler) Stop() {
+	s.done <- true
+	log.Println("Scheduler stopped")
+}
+
+// initializeSystem sets up the initial state of the system
+func (s *Scheduler) initializeSystem(ctx context.Context) error {
+	if err := s.repo.DeleteAllBurrows(ctx); err != nil {
+		return fmt.Errorf("failed to clear database: %w", err)
+	}
+	return s.loadInitialBurrows(ctx)
+}
+
+// runPeriodicTasks executes the scheduled tasks
+func (s *Scheduler) runPeriodicTasks(ctx context.Context, reportTicker *time.Ticker) {
+	defer reportTicker.Stop()
+	for {
+		select {
+		case <-reportTicker.C:
+			if err := s.generateReport(); err != nil {
+				log.Printf("Error generating report: %v", err)
+			}
+		case <-s.ticker.C:
+			if err := s.updateBurrows(ctx); err != nil {
+				log.Printf("Error updating burrows: %v", err)
+			}
+		case <-s.done:
+			s.ticker.Stop()
+			return
+		}
+	}
+}
+
+// calculateBurrowStats computes statistical information about the burrow system
 func (s *Scheduler) calculateBurrowStats(burrows []*ent.Burrow) BurrowStats {
 	stats := BurrowStats{
 		SmallestVolume: math.MaxFloat64,
@@ -114,7 +119,7 @@ func (s *Scheduler) calculateBurrowStats(burrows []*ent.Burrow) BurrowStats {
 	return stats
 }
 
-// formatReport formats the report with the required information
+// formatReport creates a formatted report string
 func formatReport(stats BurrowStats, timestamp string) string {
 	return fmt.Sprintf(`Burrow System Report
 Generated at: %s
@@ -128,6 +133,7 @@ Smallest Burrow: %s (Volume: %.2f cubic meters)
 		stats.SmallestBurrow.Name, stats.SmallestVolume)
 }
 
+// generateReport creates and saves a new report
 func (s *Scheduler) generateReport() error {
 	log.Printf("Starting report generation")
 	burrows, err := s.repo.GetAllBurrows(context.Background())
@@ -139,63 +145,69 @@ func (s *Scheduler) generateReport() error {
 		return fmt.Errorf("no burrows found")
 	}
 
-	// Calculate statistics
 	stats := s.calculateBurrowStats(burrows)
-
-	// Create reports directory
-	if err := os.MkdirAll("reports", 0755); err != nil {
-		return fmt.Errorf("failed to create reports directory: %v", err)
+	if err := s.saveReport(stats); err != nil {
+		return fmt.Errorf("failed to save report: %w", err)
 	}
 
-	// Generate report content
+	return nil
+}
+
+// saveReport writes the report to a file
+func (s *Scheduler) saveReport(stats BurrowStats) error {
+	if err := os.MkdirAll("reports", 0755); err != nil {
+		return fmt.Errorf("failed to create reports directory: %w", err)
+	}
+
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	report := formatReport(stats, timestamp)
-
-	// Write report to file
 	filename := filepath.Join("reports", fmt.Sprintf("burrow_report_%s.txt", time.Now().Format("2006-01-02_15-04-05")))
+
 	if err := os.WriteFile(filename, []byte(report), 0644); err != nil {
-		return fmt.Errorf("failed to write report: %v", err)
+		return fmt.Errorf("failed to write report: %w", err)
 	}
 
 	log.Printf("Report generated: %s", filename)
 	return nil
 }
 
-// handleOldBurrow handles the deletion of old burrows
+// handleOldBurrow removes a burrow that has exceeded its maximum age
 func (s *Scheduler) handleOldBurrow(ctx context.Context, b *ent.Burrow) error {
 	if err := s.repo.DeleteBurrow(ctx, int64(b.ID)); err != nil {
-		return fmt.Errorf("error deleting old burrow %d: %v", b.ID, err)
+		return fmt.Errorf("error deleting old burrow %d: %w", b.ID, err)
 	}
 	log.Printf("Deleted old burrow %d (age: %d)", b.ID, b.Age)
 	return nil
 }
 
-// updateBurrowDepth updates a burrow's depth
+// updateBurrowDepth increases a burrow's depth
 func (s *Scheduler) updateBurrowDepth(ctx context.Context, b *ent.Burrow) error {
-	newDepth := b.Depth + 0.009
+	newDepth := b.Depth + depthIncrement
 	if err := s.repo.UpdateBurrowDepth(ctx, int64(b.ID), newDepth); err != nil {
-		return fmt.Errorf("error updating burrow %d: %v", b.ID, err)
+		return fmt.Errorf("error updating burrow %d: %w", b.ID, err)
 	}
 	log.Printf("Updated burrow %d: depth %.2f -> %.2f", b.ID, b.Depth, newDepth)
 	return nil
 }
 
+// updateBurrows processes all occupied burrows
 func (s *Scheduler) updateBurrows(ctx context.Context) error {
 	burrows, err := s.repo.GetOccupiedBurrows(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get occupied burrows: %w", err)
 	}
 
 	log.Printf("Updating %d burrows...", len(burrows))
 
 	for _, b := range burrows {
-		if b.Age >= 1440 {
+		if b.Age >= maxBurrowAge {
 			if err := s.handleOldBurrow(ctx, b); err != nil {
 				log.Printf("%v", err)
 				continue
 			}
 			continue
 		}
+
 		if err := s.updateBurrowDepth(ctx, b); err != nil {
 			log.Printf("%v", err)
 			continue
@@ -205,30 +217,27 @@ func (s *Scheduler) updateBurrows(ctx context.Context) error {
 	return nil
 }
 
+// loadInitialBurrows loads the initial burrow configuration
 func (s *Scheduler) loadInitialBurrows(ctx context.Context) error {
-	// Read the initial.json file
 	data, err := os.ReadFile("data/initial.json")
 	if err != nil {
-		return fmt.Errorf("failed to read initial.json: %v", err)
+		return fmt.Errorf("failed to read initial.json: %w", err)
 	}
 
-	// Unmarshal the JSON data into a slice of BurrowDto
 	var burrows []dto.BurrowDto
 	if err := json.Unmarshal(data, &burrows); err != nil {
-		return fmt.Errorf("failed to parse initial.json: %v", err)
+		return fmt.Errorf("failed to parse initial.json: %w", err)
 	}
 
-	// Convert DTOs to ent.Burrow models
 	var models []*ent.Burrow
 	for _, burrow := range burrows {
 		log.Printf("Loading burrow: %s", burrow.Name)
 		models = append(models, burrow.ParseToModel())
 	}
 
-	// Bulk create burrows
 	createdBurrows, err := s.repo.CreateBurrows(ctx, models)
 	if err != nil {
-		return fmt.Errorf("failed to create burrows: %v", err)
+		return fmt.Errorf("failed to create burrows: %w", err)
 	}
 
 	log.Printf("Loaded %d initial burrows", len(createdBurrows))
