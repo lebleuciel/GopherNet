@@ -65,8 +65,6 @@ func (s *Server) registerRoutes() {
 	// API routes
 	v1 := s.engine.Group("/api/v1")
 	{
-		v1.GET("/gopher", s.handler.GetGopher)
-
 		burrowRoutes := v1.Group("/burrows")
 		{
 			burrowRoutes.POST("/:id/rent", s.handler.RentBurrow)

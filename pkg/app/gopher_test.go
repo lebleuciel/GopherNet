@@ -6,28 +6,14 @@ import (
 	"testing"
 
 	"gophernet/pkg/db/ent"
+	"gophernet/pkg/logger"
 	"gophernet/pkg/mocks"
 
 	"github.com/golang/mock/gomock"
 )
 
-func TestGetGopher(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRepo := mocks.NewMockIBurrowRepository(ctrl)
-	app := NewGopherApp(mockRepo)
-
-	msg, err := app.GetGopher(context.Background())
-	if err != nil {
-		t.Errorf("GetGopher() error = %v", err)
-	}
-	if msg != "Gopher is ready to help!" {
-		t.Errorf("GetGopher() = %v, want %v", msg, "Gopher is ready to help!")
-	}
-}
-
 func TestRentBurrow(t *testing.T) {
+	logger.InitTest()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -76,7 +62,7 @@ func TestRentBurrow(t *testing.T) {
 				IsOccupied: true,
 				Age:        0,
 			},
-			expectedError: errors.New("burrow is already occupied"),
+			expectedError: errors.New("Burrow is already occupied"),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetBurrowByID(gomock.Any(), 2).
@@ -93,7 +79,7 @@ func TestRentBurrow(t *testing.T) {
 		{
 			name:          "should fail when burrow not found",
 			burrowID:      3,
-			expectedError: errors.New("failed to get burrow"),
+			expectedError: errors.New("burrow not found"),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetBurrowByID(gomock.Any(), 3).
@@ -141,6 +127,7 @@ func TestRentBurrow(t *testing.T) {
 }
 
 func TestReleaseBurrow(t *testing.T) {
+	logger.InitTest()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -189,7 +176,7 @@ func TestReleaseBurrow(t *testing.T) {
 				IsOccupied: false,
 				Age:        0,
 			},
-			expectedError: errors.New("burrow is not occupied"),
+			expectedError: errors.New("Burrow is not occupied"),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetBurrowByID(gomock.Any(), 1).
@@ -206,7 +193,7 @@ func TestReleaseBurrow(t *testing.T) {
 		{
 			name:          "should fail when burrow not found",
 			burrowID:      3,
-			expectedError: errors.New("failed to get burrow"),
+			expectedError: errors.New("burrow not found"),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetBurrowByID(gomock.Any(), 3).
@@ -254,6 +241,7 @@ func TestReleaseBurrow(t *testing.T) {
 }
 
 func TestGetBurrowStatus(t *testing.T) {
+	logger.InitTest()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -317,7 +305,7 @@ func TestGetBurrowStatus(t *testing.T) {
 		},
 		{
 			name:          "should handle repository error",
-			expectedError: errors.New("failed to get burrows"),
+			expectedError: errors.New("failed to get burrows: database error"),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetAllBurrows(gomock.Any()).

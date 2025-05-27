@@ -6,8 +6,11 @@ import (
 
 	"gophernet/pkg/app"
 	"gophernet/pkg/dto"
+	"gophernet/pkg/errors"
+	"gophernet/pkg/logger"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // @title GopherNet API
@@ -17,32 +20,82 @@ import (
 // @BasePath /api/v1
 
 type IGopherController interface {
-	GetGopher(c *gin.Context)
 	RentBurrow(c *gin.Context)
 	ReleaseBurrow(c *gin.Context)
 	GetBurrowStatus(c *gin.Context)
+	GetBurrow(c *gin.Context)
 }
 
 type GopherController struct {
 	gopherApp *app.GopherApp
+	log       *zap.Logger
 }
 
 func NewGopherController(gopherApp *app.GopherApp) *GopherController {
 	return &GopherController{
 		gopherApp: gopherApp,
+		log:       logger.Get(),
 	}
 }
 
-// @Summary Get Gopher
-// @Description Get a welcome message from Gopher
-// @Tags gopher
+func (g *GopherController) handleError(c *gin.Context, err error) {
+	g.log.Error("Request error", zap.Error(err))
+
+	var statusCode int
+	var message string
+
+	switch err {
+	case errors.ErrBurrowNotFound:
+		statusCode = http.StatusNotFound
+		message = "Burrow not found"
+	case errors.ErrBurrowOccupied:
+		statusCode = http.StatusConflict
+		message = "Burrow is already occupied"
+	case errors.ErrBurrowNotOccupied:
+		statusCode = http.StatusConflict
+		message = "Burrow is not occupied"
+	case errors.ErrInvalidBurrowID:
+		statusCode = http.StatusBadRequest
+		message = "Invalid burrow ID"
+	default:
+		statusCode = http.StatusInternalServerError
+		message = "Internal server error"
+	}
+
+	c.JSON(statusCode, dto.ErrorResponse{Error: message})
+}
+
+// @Summary Get a Burrow
+// @Description Get a burrow by ID
+// @Tags burrows
 // @Accept json
 // @Produce json
-// @Success 200 {string} string "Gopher says hi!"
-// @Router /gopher [get]
-func (g *GopherController) GetGopher(c *gin.Context) {
-	g.gopherApp.GetGopher(c.Request.Context())
-	c.String(http.StatusOK, "Gopher says hi!")
+// @Param id path int true "Burrow ID"
+// @Success 200 {object} dto.BurrowResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Router /burrows/{id} [get]
+func (g *GopherController) GetBurrow(c *gin.Context) {
+	burrowID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		g.handleError(c, errors.ErrInvalidBurrowID)
+		return
+	}
+
+	burrow, err := g.gopherApp.GetBurrow(c.Request.Context(), burrowID)
+	if err != nil {
+		g.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.BurrowResponse{
+		ID:         burrow.ID,
+		Name:       burrow.Name,
+		Depth:      burrow.Depth,
+		Width:      burrow.Width,
+		IsOccupied: burrow.IsOccupied,
+		Age:        burrow.Age,
+	})
 }
 
 // @Summary Rent a Burrow
@@ -53,21 +106,22 @@ func (g *GopherController) GetGopher(c *gin.Context) {
 // @Param id path int true "Burrow ID"
 // @Success 200 {object} dto.BurrowResponse
 // @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
 // @Failure 409 {object} dto.ErrorResponse
 // @Router /burrows/{id}/rent [post]
 func (g *GopherController) RentBurrow(c *gin.Context) {
-	burrowIDStr := c.Param("id")
-	burrowID, err := strconv.Atoi(burrowIDStr)
+	burrowID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid burrow ID"})
+		g.handleError(c, errors.ErrInvalidBurrowID)
 		return
 	}
 
 	burrow, err := g.gopherApp.RentBurrow(c.Request.Context(), burrowID)
 	if err != nil {
-		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: err.Error()})
+		g.handleError(c, err)
 		return
 	}
+
 	c.JSON(http.StatusOK, dto.BurrowResponse{
 		ID:         burrow.ID,
 		Name:       burrow.Name,
@@ -86,21 +140,22 @@ func (g *GopherController) RentBurrow(c *gin.Context) {
 // @Param id path int true "Burrow ID"
 // @Success 200 {object} dto.BurrowResponse
 // @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
 // @Failure 409 {object} dto.ErrorResponse
 // @Router /burrows/{id}/release [post]
 func (g *GopherController) ReleaseBurrow(c *gin.Context) {
-	burrowIDStr := c.Param("id")
-	burrowID, err := strconv.Atoi(burrowIDStr)
+	burrowID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid burrow ID"})
+		g.handleError(c, errors.ErrInvalidBurrowID)
 		return
 	}
 
 	burrow, err := g.gopherApp.ReleaseBurrow(c.Request.Context(), burrowID)
 	if err != nil {
-		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: err.Error()})
+		g.handleError(c, err)
 		return
 	}
+
 	c.JSON(http.StatusOK, dto.BurrowResponse{
 		ID:         burrow.ID,
 		Name:       burrow.Name,
@@ -122,7 +177,7 @@ func (g *GopherController) ReleaseBurrow(c *gin.Context) {
 func (g *GopherController) GetBurrowStatus(c *gin.Context) {
 	burrows, err := g.gopherApp.GetBurrowStatus(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to get burrow status"})
+		g.handleError(c, err)
 		return
 	}
 

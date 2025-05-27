@@ -22,7 +22,6 @@ WORKDIR /app
 COPY --from=builder /app/gophernet ./gophernet
 COPY --from=builder /app/docs ./docs
 COPY --from=builder /app/data ./data
-COPY --from=builder /app/pkg/db/schema.sql ./pkg/db/schema.sql
 COPY config.yaml /app/config.yaml
 
 EXPOSE 8080

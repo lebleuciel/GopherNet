@@ -7,6 +7,7 @@ import (
 
 	"gophernet/pkg/config"
 	"gophernet/pkg/db/ent"
+	"gophernet/pkg/logger"
 	"gophernet/pkg/mocks"
 
 	"github.com/golang/mock/gomock"
@@ -19,7 +20,8 @@ var testConfig = &config.Scheduler{
 	DepthIncrementRate: 0.009,        // meters per minute
 }
 
-func TestHandleExistingBurrowsOnStart(t *testing.T) {
+func TestBulkBorrowUpdate(t *testing.T) {
+	logger.InitTest()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -50,14 +52,15 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			},
 		},
 		{
-			name: "should update burrow depth and age",
+			name: "should update occupied burrow depth and age",
 			initialBurrows: []*ent.Burrow{
 				{
-					ID:        1,
-					Name:      "Young Burrow",
-					Depth:     5.0,
-					Age:       0,
-					UpdatedAt: time.Now().Add(-60 * time.Minute), // 1 hour ago
+					ID:         1,
+					Name:       "Occupied Burrow",
+					Depth:      5.0,
+					IsOccupied: true,
+					Age:        0,
+					UpdatedAt:  time.Now().Add(-60 * time.Minute), // 1 hour ago
 				},
 			},
 			expectedCount: 1,
@@ -70,7 +73,28 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			},
 		},
 		{
-			name: "should handle multiple burrows",
+			name: "should update unoccupied burrow age only",
+			initialBurrows: []*ent.Burrow{
+				{
+					ID:         1,
+					Name:       "Unoccupied Burrow",
+					Depth:      5.0,
+					IsOccupied: false,
+					Age:        0,
+					UpdatedAt:  time.Now().Add(-60 * time.Minute), // 1 hour ago
+				},
+			},
+			expectedCount: 1,
+			checkDepth:    true,
+			expectedDepth: 5.0, // Depth should remain unchanged
+			setupMock: func(mock *mocks.MockIBurrowRepository) {
+				mock.EXPECT().
+					UpdateBurrow(gomock.Any(), int64(1), 5.0, 1).
+					Return(nil)
+			},
+		},
+		{
+			name: "should handle mixed burrows",
 			initialBurrows: []*ent.Burrow{
 				{
 					ID:        1,
@@ -80,14 +104,23 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 					UpdatedAt: time.Now().Add(-24 * time.Hour),
 				},
 				{
-					ID:        2,
-					Name:      "Young Burrow",
-					Depth:     5.0,
-					Age:       0,
-					UpdatedAt: time.Now().Add(-60 * time.Minute),
+					ID:         2,
+					Name:       "Occupied Burrow",
+					Depth:      5.0,
+					IsOccupied: true,
+					Age:        0,
+					UpdatedAt:  time.Now().Add(-60 * time.Minute),
+				},
+				{
+					ID:         3,
+					Name:       "Unoccupied Burrow",
+					Depth:      8.0,
+					IsOccupied: false,
+					Age:        30,
+					UpdatedAt:  time.Now().Add(-60 * time.Minute),
 				},
 			},
-			expectedCount: 1,
+			expectedCount: 2,
 			checkDepth:    true,
 			expectedDepth: 5.0 + (60 * testConfig.DepthIncrementRate),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
@@ -96,6 +129,9 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 					Return(nil)
 				mock.EXPECT().
 					UpdateBurrow(gomock.Any(), int64(2), 5.0+(60*testConfig.DepthIncrementRate), 60).
+					Return(nil)
+				mock.EXPECT().
+					UpdateBurrow(gomock.Any(), int64(3), 8.0, 31).
 					Return(nil)
 			},
 		},
@@ -109,9 +145,9 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			scheduler := NewScheduler(mockRepo, testConfig)
 
 			// Execute
-			err := scheduler.handleExistingBurrowsOnStart(context.Background(), tt.initialBurrows)
+			err := scheduler.BulkBorrowUpdate(context.Background(), tt.initialBurrows)
 			if err != nil {
-				t.Errorf("handleExistingBurrowsOnStart() error = %v", err)
+				t.Errorf("BulkBorrowUpdate() error = %v", err)
 				return
 			}
 		})
@@ -119,6 +155,7 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 }
 
 func TestUpdateBurrows(t *testing.T) {
+	logger.InitTest()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -145,7 +182,7 @@ func TestUpdateBurrows(t *testing.T) {
 			expectedAge:   0,
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
-					GetOccupiedBurrows(gomock.Any()).
+					GetAllBurrows(gomock.Any()).
 					Return([]*ent.Burrow{
 						{
 							ID:         1,
@@ -162,7 +199,7 @@ func TestUpdateBurrows(t *testing.T) {
 			},
 		},
 		{
-			name: "should not update unoccupied burrow",
+			name: "should update unoccupied burrow age",
 			initialBurrows: []*ent.Burrow{
 				{
 					ID:         1,
@@ -174,11 +211,72 @@ func TestUpdateBurrows(t *testing.T) {
 				},
 			},
 			expectedDepth: 5.0,
-			expectedAge:   0,
+			expectedAge:   1,
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
-					GetOccupiedBurrows(gomock.Any()).
-					Return([]*ent.Burrow{}, nil)
+					GetAllBurrows(gomock.Any()).
+					Return([]*ent.Burrow{
+						{
+							ID:         1,
+							Name:       "Unoccupied Burrow",
+							Depth:      5.0,
+							IsOccupied: false,
+							Age:        0,
+							UpdatedAt:  time.Now(),
+						},
+					}, nil)
+				mock.EXPECT().
+					UpdateBurrow(gomock.Any(), int64(1), 5.0, 1).
+					Return(nil)
+			},
+		},
+		{
+			name: "should handle mixed burrows",
+			initialBurrows: []*ent.Burrow{
+				{
+					ID:         1,
+					Name:       "Occupied Burrow",
+					Depth:      5.0,
+					IsOccupied: true,
+					Age:        0,
+					UpdatedAt:  time.Now(),
+				},
+				{
+					ID:         2,
+					Name:       "Unoccupied Burrow",
+					Depth:      10.0,
+					IsOccupied: false,
+					Age:        5,
+					UpdatedAt:  time.Now(),
+				},
+			},
+			setupMock: func(mock *mocks.MockIBurrowRepository) {
+				mock.EXPECT().
+					GetAllBurrows(gomock.Any()).
+					Return([]*ent.Burrow{
+						{
+							ID:         1,
+							Name:       "Occupied Burrow",
+							Depth:      5.0,
+							IsOccupied: true,
+							Age:        0,
+							UpdatedAt:  time.Now(),
+						},
+						{
+							ID:         2,
+							Name:       "Unoccupied Burrow",
+							Depth:      10.0,
+							IsOccupied: false,
+							Age:        5,
+							UpdatedAt:  time.Now(),
+						},
+					}, nil)
+				mock.EXPECT().
+					UpdateBurrow(gomock.Any(), int64(1), 5.0, 0).
+					Return(nil)
+				mock.EXPECT().
+					UpdateBurrow(gomock.Any(), int64(2), 10.0, 6).
+					Return(nil)
 			},
 		},
 	}
@@ -201,6 +299,7 @@ func TestUpdateBurrows(t *testing.T) {
 }
 
 func TestCalculateBurrowStats(t *testing.T) {
+	logger.InitTest()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

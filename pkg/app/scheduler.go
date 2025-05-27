@@ -81,7 +81,7 @@ func (s *Scheduler) initializeSystem(ctx context.Context) error {
 	}
 
 	if len(existingBurrows) > 0 {
-		s.handleExistingBurrowsOnStart(ctx, existingBurrows)
+		s.BulkBorrowUpdate(ctx, existingBurrows)
 	}
 
 	return nil
@@ -102,18 +102,17 @@ func (s *Scheduler) runPeriodicTasks(ctx context.Context) {
 	}
 }
 
-// updateBurrows processes all occupied burrows
+// updateBurrows processes all burrows (both occupied and unoccupied)
 func (s *Scheduler) updateBurrows(ctx context.Context) error {
-	burrows, err := s.repo.GetOccupiedBurrows(ctx)
+	// Get all burrows
+	burrows, err := s.repo.GetAllBurrows(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get occupied burrows: %w", err)
+		return fmt.Errorf("failed to get burrows: %w", err)
 	}
 
-	for _, b := range burrows {
-		if err := s.UpdateBurrow(ctx, b); err != nil {
-			s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
-			continue
-		}
+	err = s.BulkBorrowUpdate(ctx, burrows)
+	if err != nil {
+		return fmt.Errorf("failed to handle bulk borrow update: %w", err)
 	}
 
 	return nil
@@ -240,12 +239,25 @@ func (s *Scheduler) loadInitialBurrows(ctx context.Context) error {
 }
 
 // handleExistingBurrowsOnStart processes existing burrows when the system starts
-func (s *Scheduler) handleExistingBurrowsOnStart(ctx context.Context, burrows []*ent.Burrow) error {
+func (s *Scheduler) BulkBorrowUpdate(ctx context.Context, burrows []*ent.Burrow) error {
 	for _, b := range burrows {
-		// Update the burrow with new age and depth
-		if err := s.UpdateBurrow(ctx, b); err != nil {
-			s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
-			continue
+		if b.IsOccupied {
+			// Update the burrow with new age and depth
+			if err := s.UpdateBurrow(ctx, b); err != nil {
+				s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
+				continue
+			}
+		} else {
+			// For unoccupied burrows, only update age
+			newAge := b.Age + 1
+			if b.Age >= s.config.MaxBurrowAge {
+				s.handleOldBurrow(ctx, b)
+				continue
+			}
+			if err := s.repo.UpdateBurrow(ctx, int64(b.ID), b.Depth, newAge); err != nil {
+				s.log.Error("Failed to update unoccupied burrow age", zap.Int("burrow_id", b.ID), zap.Error(err))
+				continue
+			}
 		}
 	}
 	return nil
@@ -257,14 +269,12 @@ func (s *Scheduler) UpdateBurrow(ctx context.Context, burrow *ent.Burrow) error 
 	minutesPassed := int(timePassed.Minutes())
 	newAge := burrow.Age + minutesPassed
 
-	// If burrow is older than max age, delete it
-	if newAge >= s.config.MaxBurrowAge {
-		if err := s.handleOldBurrow(ctx, burrow); err != nil {
-			s.log.Error("Failed to delete old burrow", zap.Int("burrow_id", burrow.ID), zap.Error(err))
+	if burrow.Age >= s.config.MaxBurrowAge {
+		err := s.handleOldBurrow(ctx, burrow)
+		if err != nil {
+			return err
 		}
-		return nil
 	}
-
 	// Calculate new depth based on time passed
 	depthIncrease := float64(minutesPassed) * s.config.DepthIncrementRate
 	newDepth := burrow.Depth + depthIncrease
@@ -272,14 +282,6 @@ func (s *Scheduler) UpdateBurrow(ctx context.Context, burrow *ent.Burrow) error 
 	if err := s.repo.UpdateBurrow(ctx, int64(burrow.ID), newDepth, newAge); err != nil {
 		return fmt.Errorf("error updating burrow %d: %w", burrow.ID, err)
 	}
-
-	s.log.Debug("Updated burrow",
-		zap.Int("burrow_id", burrow.ID),
-		zap.Float64("old_depth", burrow.Depth),
-		zap.Float64("new_depth", newDepth),
-		zap.Int("old_age", burrow.Age),
-		zap.Int("new_age", newAge),
-	)
 
 	return nil
 }

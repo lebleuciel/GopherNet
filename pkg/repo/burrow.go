@@ -8,6 +8,7 @@ import (
 	"gophernet/pkg/db"
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/db/ent/burrow"
+	"gophernet/pkg/errors"
 )
 
 // IBurrowRepository defines the interface for burrow data operations
@@ -105,7 +106,10 @@ func (r *BurrowRepository) GetAllBurrows(ctx context.Context) ([]*ent.Burrow, er
 func (r *BurrowRepository) GetBurrowByID(ctx context.Context, id int) (*ent.Burrow, error) {
 	burrow, err := r.db.EntClient().Burrow.Get(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get burrow by ID: %w", err)
+		if ent.IsNotFound(err) {
+			return nil, errors.ErrBurrowNotFound
+		}
+		return nil, errors.Wrap(err, "failed to get burrow")
 	}
 	return burrow, nil
 }
@@ -117,7 +121,10 @@ func (r *BurrowRepository) UpdateBurrowOccupancy(ctx context.Context, id int, is
 		SetUpdatedAt(time.Now()).
 		Save(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to update burrow occupancy: %w", err)
+		if ent.IsNotFound(err) {
+			return errors.ErrBurrowNotFound
+		}
+		return errors.Wrap(err, "failed to update burrow occupancy")
 	}
 	return nil
 }

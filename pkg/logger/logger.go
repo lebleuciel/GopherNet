@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io/ioutil"
 	"os"
 
 	"go.uber.org/zap"
@@ -46,6 +47,33 @@ func Init(debug bool) {
 
 	// Create logger
 	log = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+}
+
+// InitTest initializes the logger in test mode with minimal output
+func InitTest() {
+	// Create encoder config
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:        "time",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+
+	core := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(encoderConfig),
+		zapcore.AddSync(ioutil.Discard),
+		zapcore.ErrorLevel, // Only show errors
+	)
+
+	// Create logger
+	log = zap.New(core)
 }
 
 // Get returns the logger instance
