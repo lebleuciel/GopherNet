@@ -7,6 +7,7 @@ import (
 type Config struct {
 	Database  Database  `mapstructure:"database"`
 	Scheduler Scheduler `mapstructure:"scheduler"`
+	Logger    Logger    `mapstructure:"logger"`
 }
 
 type Scheduler struct {
@@ -14,4 +15,8 @@ type Scheduler struct {
 	UpdateInterval     time.Duration `mapstructure:"update_interval"`
 	MaxBurrowAge       int           `mapstructure:"max_burrow_age"`
 	DepthIncrementRate float64       `mapstructure:"depth_increment"`
+}
+
+type Logger struct {
+	Debug bool `mapstructure:"debug"`
 }

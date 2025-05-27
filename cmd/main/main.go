@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,16 +10,25 @@ import (
 	"gophernet/pkg/config"
 	controller "gophernet/pkg/controller"
 	"gophernet/pkg/db"
+	"gophernet/pkg/logger"
 	"gophernet/pkg/repo"
 	"gophernet/pkg/shutdown"
 	"gophernet/server"
+
+	"go.uber.org/zap"
 )
 
 func main() {
-	log.Println("Starting GopherNet server...")
-	bgCtx := context.Background()
 	// Load configuration
 	cfg := config.LoadConfigFromDefaultPath()
+
+	// Initialize logger
+	logger.Init(cfg.Logger.Debug)
+	log := logger.Get()
+	defer logger.Sync()
+
+	log.Info("Starting GopherNet server...")
+	bgCtx := context.Background()
 
 	// Initialize database
 	database := db.NewDatabase(bgCtx, &cfg.Database)
@@ -29,12 +37,12 @@ func main() {
 	// Check if database is initialized
 	initialized, err := database.IsInitialized(bgCtx)
 	if err != nil {
-		log.Printf("Error checking database initialization: %v", err)
+		log.Error("Error checking database initialization", zap.Error(err))
 		os.Exit(1)
 	}
 
 	if !initialized {
-		log.Println("Database not initialized. Please run database migrations first.")
+		log.Error("Database not initialized. Please run database migrations first.")
 		os.Exit(1)
 	}
 
@@ -61,5 +69,5 @@ func main() {
 
 	// Wait for interrupt signal
 	<-bgCtx.Done()
-	log.Println("Shutting down...")
+	log.Info("Shutting down...")
 }

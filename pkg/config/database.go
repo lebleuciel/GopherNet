@@ -9,7 +9,7 @@ type Database struct {
 }
 
 var DefaultDatabase = Database{
-	Host:     "localhost",
+	Host:     "db",
 	Port:     5432,
 	User:     "postgres",
 	Password: "postgres",

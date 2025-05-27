@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -13,8 +12,11 @@ import (
 	"gophernet/pkg/config"
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/dto"
+	"gophernet/pkg/logger"
 	"gophernet/pkg/repo"
 	"gophernet/pkg/utils"
+
+	"go.uber.org/zap"
 )
 
 type IScheduler interface {
@@ -28,6 +30,7 @@ type Scheduler struct {
 	updateTicker *time.Ticker
 	reportTicker *time.Ticker
 	config       *config.Scheduler
+	log          *zap.Logger
 }
 
 // BurrowStats holds the statistical information about the burrow system
@@ -47,6 +50,7 @@ func NewScheduler(repo repo.IBurrowRepository, cfg *config.Scheduler) *Scheduler
 		updateTicker: time.NewTicker(cfg.UpdateInterval),
 		reportTicker: time.NewTicker(cfg.ReportInterval),
 		config:       cfg,
+		log:          logger.Get(),
 	}
 	return scheduler
 }
@@ -54,12 +58,12 @@ func NewScheduler(repo repo.IBurrowRepository, cfg *config.Scheduler) *Scheduler
 // Start begins the scheduler's periodic tasks
 func (s *Scheduler) Start(ctx context.Context) {
 	if err := s.initializeSystem(ctx); err != nil {
-		log.Printf("Error initializing scheduler system: %v", err)
+		s.log.Error("Error initializing scheduler system", zap.Error(err))
 	}
 
 	go s.runPeriodicTasks(ctx)
 
-	log.Println("Scheduler started")
+	s.log.Info("Scheduler started")
 }
 
 // Stop gracefully shuts down the scheduler
@@ -88,11 +92,11 @@ func (s *Scheduler) runPeriodicTasks(ctx context.Context) {
 		select {
 		case <-s.reportTicker.C:
 			if err := s.generateReport(); err != nil {
-				log.Printf("Error generating report: %v", err)
+				s.log.Error("Error generating report", zap.Error(err))
 			}
 		case <-s.updateTicker.C:
 			if err := s.updateBurrows(ctx); err != nil {
-				log.Printf("Error updating burrows: %v", err)
+				s.log.Error("Error updating burrows", zap.Error(err))
 			}
 		}
 	}
@@ -107,7 +111,7 @@ func (s *Scheduler) updateBurrows(ctx context.Context) error {
 
 	for _, b := range burrows {
 		if err := s.UpdateBurrow(ctx, b); err != nil {
-			log.Printf("Failed to update burrow %d: %v", b.ID, err)
+			s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
 			continue
 		}
 	}
@@ -196,6 +200,7 @@ func (s *Scheduler) saveReport(stats BurrowStats) error {
 		return fmt.Errorf("failed to write report: %w", err)
 	}
 
+	s.log.Info("Report generated", zap.String("filename", filename))
 	return nil
 }
 
@@ -204,6 +209,7 @@ func (s *Scheduler) handleOldBurrow(ctx context.Context, b *ent.Burrow) error {
 	if err := s.repo.DeleteBurrow(ctx, int64(b.ID)); err != nil {
 		return fmt.Errorf("error deleting old burrow %d: %w", b.ID, err)
 	}
+	s.log.Info("Deleted old burrow", zap.Int("burrow_id", b.ID))
 	return nil
 }
 
@@ -229,7 +235,7 @@ func (s *Scheduler) loadInitialBurrows(ctx context.Context) error {
 		return fmt.Errorf("failed to create burrows: %w", err)
 	}
 
-	log.Printf("Loaded %d initial burrows", len(createdBurrows))
+	s.log.Info("Loaded initial burrows", zap.Int("count", len(createdBurrows)))
 	return nil
 }
 
@@ -238,7 +244,7 @@ func (s *Scheduler) handleExistingBurrowsOnStart(ctx context.Context, burrows []
 	for _, b := range burrows {
 		// Update the burrow with new age and depth
 		if err := s.UpdateBurrow(ctx, b); err != nil {
-			log.Printf("Failed to update burrow %d: %v", b.ID, err)
+			s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
 			continue
 		}
 	}
@@ -251,21 +257,29 @@ func (s *Scheduler) UpdateBurrow(ctx context.Context, burrow *ent.Burrow) error 
 	minutesPassed := int(timePassed.Minutes())
 	newAge := burrow.Age + minutesPassed
 
-	// If burrow is older than 25 days, delete it
+	// If burrow is older than max age, delete it
 	if newAge >= s.config.MaxBurrowAge {
 		if err := s.handleOldBurrow(ctx, burrow); err != nil {
-			log.Printf("Failed to delete old burrow %d: %v", burrow.ID, err)
+			s.log.Error("Failed to delete old burrow", zap.Int("burrow_id", burrow.ID), zap.Error(err))
 		}
 		return nil
 	}
 
-	// Calculate new depth based on time passed (0.009 meters per minute)
+	// Calculate new depth based on time passed
 	depthIncrease := float64(minutesPassed) * s.config.DepthIncrementRate
 	newDepth := burrow.Depth + depthIncrease
 
 	if err := s.repo.UpdateBurrow(ctx, int64(burrow.ID), newDepth, newAge); err != nil {
 		return fmt.Errorf("error updating burrow %d: %w", burrow.ID, err)
 	}
+
+	s.log.Debug("Updated burrow",
+		zap.Int("burrow_id", burrow.ID),
+		zap.Float64("old_depth", burrow.Depth),
+		zap.Float64("new_depth", newDepth),
+		zap.Int("old_age", burrow.Age),
+		zap.Int("new_age", newAge),
+	)
 
 	return nil
 }
