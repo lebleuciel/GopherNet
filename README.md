@@ -4,14 +4,21 @@ A modern platform for managing and monitoring gopher burrow rentals. GopherNet p
 
 ## Features
 
+### Core Features
 - 🏠 Burrow Management System
 - 📊 Real-time Burrow Statistics
 - 🔄 Automated Burrow Maintenance
 - 📈 Periodic System Reports
 - 🐳 Docker Support
-- 🧪 Comprehensive Test Coverage
-- 📚 Swagger API Documentation
-- 💾 Data Persistence Between Runs
+
+### Bonus Features
+- 💾 **Data Persistence**: All burrow data is automatically persisted between server restarts
+- 📝 **Structured Logging**: Comprehensive logging using Zap logger with debug/production modes
+- ⚙️ **Configurable Settings**: Flexible configuration via YAML with environment variable overrides
+- 📊 **Enhanced Monitoring**: Detailed burrow statistics and automated reporting
+- 🔄 **Smart Burrow Management**: Automatic depth updates and age-based cleanup
+- 🧪 **Comprehensive Testing**: Extensive test coverage with mock-based testing
+- 📚 **API Documentation**: Swagger/OpenAPI documentation for all endpoints
 
 ## Prerequisites
 
@@ -62,6 +69,19 @@ GopherNet automatically handles data persistence:
 - On subsequent runs, the system resumes the previous state from the database
 - All burrow modifications (depth, occupancy, etc.) are persisted
 - System reports are saved in the `reports` directory
+
+## Logging
+
+The application uses Zap logger with two modes:
+
+- **Debug Mode**: Console-based logging with detailed information
+- **Production Mode**: JSON-formatted logs with essential information
+
+Configure logging in `config.yaml`:
+```yaml
+logger:
+  debug: true  # Set to false for production mode
+```
 
 ## API Endpoints
 
@@ -123,6 +143,9 @@ scheduler:
   update_interval: 1m
   max_burrow_age: 1440
   depth_increment: 0.009
+
+logger:
+  debug: true
 ```
 
 ## Initial Data

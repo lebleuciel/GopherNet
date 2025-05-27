@@ -126,6 +126,7 @@ func TestUpdateBurrows(t *testing.T) {
 		name           string
 		initialBurrows []*ent.Burrow
 		expectedDepth  float64
+		expectedAge    int
 		setupMock      func(*mocks.MockIBurrowRepository)
 	}{
 		{
@@ -140,7 +141,8 @@ func TestUpdateBurrows(t *testing.T) {
 					UpdatedAt:  time.Now(),
 				},
 			},
-			expectedDepth: 5.0 + testConfig.DepthIncrementRate,
+			expectedDepth: 5.0,
+			expectedAge:   0,
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetOccupiedBurrows(gomock.Any()).
@@ -155,7 +157,7 @@ func TestUpdateBurrows(t *testing.T) {
 						},
 					}, nil)
 				mock.EXPECT().
-					UpdateBurrow(gomock.Any(), int64(1), 5.0+testConfig.DepthIncrementRate, 1).
+					UpdateBurrow(gomock.Any(), int64(1), 5.0, 0).
 					Return(nil)
 			},
 		},
@@ -172,6 +174,7 @@ func TestUpdateBurrows(t *testing.T) {
 				},
 			},
 			expectedDepth: 5.0,
+			expectedAge:   0,
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetOccupiedBurrows(gomock.Any()).

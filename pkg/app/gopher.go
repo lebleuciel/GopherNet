@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/logger"
@@ -43,7 +42,7 @@ func (g *GopherApp) RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, 
 	burrow, err := g.repo.GetBurrowByID(ctx, burrowID)
 	if err != nil {
 		g.log.Error("Failed to get burrow", zap.Int("burrow_id", burrowID), zap.Error(err))
-		return nil, fmt.Errorf("failed to get burrow: %w", err)
+		return nil, errors.New("failed to get burrow")
 	}
 
 	if burrow.IsOccupied {
@@ -53,7 +52,7 @@ func (g *GopherApp) RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, 
 
 	if err := g.repo.UpdateBurrowOccupancy(ctx, burrowID, true); err != nil {
 		g.log.Error("Failed to update burrow occupancy", zap.Int("burrow_id", burrowID), zap.Error(err))
-		return nil, fmt.Errorf("failed to update burrow occupancy: %w", err)
+		return nil, errors.New("failed to update burrow occupancy")
 	}
 
 	burrow.IsOccupied = true
@@ -67,7 +66,7 @@ func (g *GopherApp) ReleaseBurrow(ctx context.Context, burrowID int) (*ent.Burro
 	burrow, err := g.repo.GetBurrowByID(ctx, burrowID)
 	if err != nil {
 		g.log.Error("Failed to get burrow", zap.Int("burrow_id", burrowID), zap.Error(err))
-		return nil, fmt.Errorf("failed to get burrow: %w", err)
+		return nil, errors.New("failed to get burrow")
 	}
 
 	if !burrow.IsOccupied {
@@ -77,7 +76,7 @@ func (g *GopherApp) ReleaseBurrow(ctx context.Context, burrowID int) (*ent.Burro
 
 	if err := g.repo.UpdateBurrowOccupancy(ctx, burrowID, false); err != nil {
 		g.log.Error("Failed to update burrow occupancy", zap.Int("burrow_id", burrowID), zap.Error(err))
-		return nil, fmt.Errorf("failed to update burrow occupancy: %w", err)
+		return nil, errors.New("failed to update burrow occupancy")
 	}
 
 	burrow.IsOccupied = false
@@ -91,7 +90,7 @@ func (g *GopherApp) GetBurrowStatus(ctx context.Context) ([]*ent.Burrow, error) 
 	burrows, err := g.repo.GetAllBurrows(ctx)
 	if err != nil {
 		g.log.Error("Failed to get burrows", zap.Error(err))
-		return nil, fmt.Errorf("failed to get burrows: %w", err)
+		return nil, errors.New("failed to get burrows")
 	}
 
 	g.log.Info("Retrieved burrow status", zap.Int("count", len(burrows)))
