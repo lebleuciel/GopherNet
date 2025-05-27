@@ -1,5 +1,5 @@
 definitions:
-  models.Burrow:
+  dto.BurrowResponse:
     properties:
       age:
         type: integer
@@ -14,7 +14,7 @@ definitions:
       width:
         type: number
     type: object
-  models.ErrorResponse:
+  dto.ErrorResponse:
     properties:
       error:
         type: string
@@ -22,6 +22,35 @@ definitions:
 info:
   contact: {}
 paths:
+  /burrows/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a burrow by ID
+      parameters:
+      - description: Burrow ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BurrowResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Get a Burrow
+      tags:
+      - burrows
   /burrows/{id}/release:
     post:
       consumes:
@@ -39,15 +68,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Burrow'
+            $ref: '#/definitions/dto.BurrowResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Release a Burrow
       tags:
       - burrows
@@ -68,15 +101,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.Burrow'
+            $ref: '#/definitions/dto.BurrowResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Rent a Burrow
       tags:
       - burrows
@@ -92,28 +129,13 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/models.Burrow'
+              $ref: '#/definitions/dto.BurrowResponse'
             type: array
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Get Burrow Status
       tags:
       - burrows
-  /gopher:
-    get:
-      consumes:
-      - application/json
-      description: Get a welcome message from Gopher
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Gopher says hi!
-          schema:
-            type: string
-      summary: Get Gopher
-      tags:
-      - gopher
 swagger: "2.0"
