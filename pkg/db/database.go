@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	dbsql "database/sql"
@@ -68,21 +67,16 @@ func NewDatabase(ctx context.Context, dbConfig *config.Database) Database {
 
 	db := stdlib.OpenDB(*pool.Config().ConnConfig)
 
-	// Run schema SQL
-	schemaSQL, err := os.ReadFile("pkg/db/schema.sql")
-	if err != nil {
-		panic(fmt.Errorf("reading schema SQL: %w", err))
-	}
-
-	if _, err := db.ExecContext(ctx, string(schemaSQL)); err != nil {
-		panic(fmt.Errorf("executing schema SQL: %w", err))
-	}
-
 	// Create ent driver
 	driver := sql.OpenDB(dialect.Postgres, db)
 
 	// Create ent client
 	client := ent.NewClient(ent.Driver(driver))
+
+	// Run automatic migrations
+	if err := client.Schema.Create(ctx); err != nil {
+		panic(fmt.Errorf("failed creating schema resources: %w", err))
+	}
 
 	// Register shutdown handler
 	shutdown.GetManager().Register("database", func(ctx context.Context) error {
@@ -124,7 +118,7 @@ func (db *database) DB() *dbsql.DB {
 
 // IsInitialized checks if the database is properly initialized
 func (d *database) IsInitialized(ctx context.Context) (bool, error) {
-	// Check if the burrows table exists and has the correct schema
+	// Check if the burrows table exists
 	var exists bool
 	err := d.database.QueryRow(`
 		SELECT EXISTS (
@@ -137,23 +131,5 @@ func (d *database) IsInitialized(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to check if burrows table exists: %w", err)
 	}
 
-	if !exists {
-		return false, nil
-	}
-
-	// Check if the table has the correct schema
-	var count int
-	err = d.database.QueryRow(`
-		SELECT COUNT(*) 
-		FROM information_schema.columns 
-		WHERE table_schema = 'public' 
-		AND table_name = 'burrows' 
-		AND column_name IN ('id', 'name', 'depth', 'width', 'is_occupied', 'age', 'created_at', 'last_dug_at');
-	`).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("failed to check burrows table schema: %w", err)
-	}
-
-	// We expect 8 columns in the burrows table
-	return count == 8, nil
+	return exists, nil
 }

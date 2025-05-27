@@ -22,7 +22,7 @@ DOCKER=docker
 MOCKGEN=mockgen
 MOCK_DIR=pkg/mocks
 
-.PHONY: all build clean test run dev deps db-create db-drop db-reset docker-build docker-up docker-down docker-logs docker-clean install-mockgen generate-mocks
+.PHONY: all build clean test run dev deps db-create db-drop db-reset docker-build docker-up docker-down docker-logs docker-clean install-mockgen generate-mocks migrate
 
 all: clean build
 
@@ -55,6 +55,10 @@ db-drop:
 	PGPASSWORD=$(DB_PASSWORD) dropdb -h localhost -p $(DB_PORT) -U $(DB_USER) $(DB_NAME)
 
 db-reset: db-drop db-create
+
+# Migration commands
+migrate:
+	$(GOCMD) run -mod=mod entgo.io/ent/cmd/ent generate ./pkg/db/ent/schema
 
 # Swagger documentation
 swagger:
@@ -97,6 +101,7 @@ help:
 	@echo "  make db-create  - Create database"
 	@echo "  make db-drop    - Drop database"
 	@echo "  make db-reset   - Reset database (drop and create)"
+	@echo "  make migrate    - Generate and run database migrations"
 	@echo "  make swagger    - Generate Swagger documentation"
 	@echo "  make docker-build - Build Docker images"
 	@echo "  make docker-up    - Start Docker containers"
@@ -104,4 +109,5 @@ help:
 	@echo "  make docker-logs  - View Docker container logs"
 	@echo "  make docker-clean - Clean up Docker resources"
 	@echo "  make install-mockgen - Install mockgen tool"
+	@echo "  make generate-mocks  - Generate mock files" 
 	@echo "  make generate-mocks  - Generate mock files" 

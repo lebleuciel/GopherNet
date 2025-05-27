@@ -83,8 +83,7 @@ func (s *Scheduler) initializeSystem(ctx context.Context) error {
 	if len(existingBurrows) > 0 {
 		s.BulkBorrowUpdate(ctx, existingBurrows)
 	}
-
-	return nil
+	return s.loadInitialBurrows(ctx)
 }
 
 func (s *Scheduler) runPeriodicTasks(ctx context.Context) {
