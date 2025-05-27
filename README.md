@@ -11,6 +11,7 @@ A modern platform for managing and monitoring gopher burrow rentals. GopherNet p
 - 🐳 Docker Support
 - 🧪 Comprehensive Test Coverage
 - 📚 Swagger API Documentation
+- 💾 Data Persistence Between Runs
 
 ## Prerequisites
 
@@ -52,6 +53,15 @@ make db-create
 make build
 make run
 ```
+
+## Data Persistence
+
+GopherNet automatically handles data persistence:
+
+- On first run, the system loads initial burrow data from `data/initial.json`
+- On subsequent runs, the system resumes the previous state from the database
+- All burrow modifications (depth, occupancy, etc.) are persisted
+- System reports are saved in the `reports` directory
 
 ## API Endpoints
 

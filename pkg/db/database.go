@@ -21,6 +21,7 @@ type Database interface {
 	Close() error
 	EntClient() *ent.Client
 	DB() *dbsql.DB
+	IsInitialized(ctx context.Context) (bool, error)
 }
 
 type database struct {
@@ -119,4 +120,40 @@ func (db *database) EntClient() *ent.Client {
 
 func (db *database) DB() *dbsql.DB {
 	return db.database
+}
+
+// IsInitialized checks if the database is properly initialized
+func (d *database) IsInitialized(ctx context.Context) (bool, error) {
+	// Check if the burrows table exists and has the correct schema
+	var exists bool
+	err := d.database.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'burrows'
+		);
+	`).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if burrows table exists: %w", err)
+	}
+
+	if !exists {
+		return false, nil
+	}
+
+	// Check if the table has the correct schema
+	var count int
+	err = d.database.QueryRow(`
+		SELECT COUNT(*) 
+		FROM information_schema.columns 
+		WHERE table_schema = 'public' 
+		AND table_name = 'burrows' 
+		AND column_name IN ('id', 'name', 'depth', 'width', 'is_occupied', 'age', 'created_at', 'last_dug_at');
+	`).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check burrows table schema: %w", err)
+	}
+
+	// We expect 8 columns in the burrows table
+	return count == 8, nil
 }

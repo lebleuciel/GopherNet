@@ -5,45 +5,32 @@ import (
 	"errors"
 	"fmt"
 
-	"gophernet/pkg/config"
 	"gophernet/pkg/db/ent"
 	"gophernet/pkg/repo"
 )
 
 type IGopherApp interface {
 	GetGopher(ctx context.Context) (string, error)
-	StartScheduler(ctx context.Context)
-	StopScheduler()
 	RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, error)
 	ReleaseBurrow(ctx context.Context, burrowID int) (*ent.Burrow, error)
 	GetBurrowStatus(ctx context.Context) ([]*ent.Burrow, error)
 }
 
 type GopherApp struct {
-	repo      repo.IBurrowRepository
-	scheduler *Scheduler
-	config    *config.Scheduler
+	repo repo.IBurrowRepository
 }
 
-func NewGopherApp(repo repo.IBurrowRepository, cfg *config.Scheduler) *GopherApp {
-	return &GopherApp{
-		repo:      repo,
-		scheduler: NewScheduler(repo, cfg),
-		config:    cfg,
+func NewGopherApp(repo repo.IBurrowRepository) *GopherApp {
+	ga := &GopherApp{
+		repo: repo,
 	}
+	return ga
 }
 
 func (g *GopherApp) GetGopher(ctx context.Context) (string, error) {
 	return "Gopher is ready to help!", nil
 }
 
-func (g *GopherApp) StartScheduler(ctx context.Context) {
-	g.scheduler.Start(ctx)
-}
-
-func (g *GopherApp) StopScheduler() {
-	g.scheduler.Stop()
-}
 func (g *GopherApp) RentBurrow(ctx context.Context, burrowID int) (*ent.Burrow, error) {
 	burrow, err := g.repo.GetBurrowByID(ctx, burrowID)
 	if err != nil {

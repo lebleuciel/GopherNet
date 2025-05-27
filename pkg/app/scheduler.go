@@ -17,12 +17,17 @@ import (
 	"gophernet/pkg/utils"
 )
 
+type IScheduler interface {
+	Start(ctx context.Context)
+	Stop()
+}
+
 // Scheduler manages periodic tasks for burrow maintenance and reporting
 type Scheduler struct {
-	repo   repo.IBurrowRepository
-	ticker *time.Ticker
-	done   chan bool
-	config *config.Scheduler
+	repo         repo.IBurrowRepository
+	updateTicker *time.Ticker
+	reportTicker *time.Ticker
+	config       *config.Scheduler
 }
 
 // BurrowStats holds the statistical information about the burrow system
@@ -37,58 +42,58 @@ type BurrowStats struct {
 
 // NewScheduler creates a new scheduler instance
 func NewScheduler(repo repo.IBurrowRepository, cfg *config.Scheduler) *Scheduler {
-	if cfg == nil {
-		cfg = &config.DefaultScheduler
+	scheduler := &Scheduler{
+		repo:         repo,
+		updateTicker: time.NewTicker(cfg.UpdateInterval),
+		reportTicker: time.NewTicker(cfg.ReportInterval),
+		config:       cfg,
 	}
-	return &Scheduler{
-		repo:   repo,
-		ticker: time.NewTicker(cfg.UpdateInterval),
-		done:   make(chan bool),
-		config: cfg,
-	}
+	return scheduler
 }
 
 // Start begins the scheduler's periodic tasks
 func (s *Scheduler) Start(ctx context.Context) {
 	if err := s.initializeSystem(ctx); err != nil {
-		log.Printf("Error initializing system: %v", err)
+		log.Printf("Error initializing scheduler system: %v", err)
 	}
 
-	reportTicker := time.NewTicker(s.config.ReportInterval)
-	go s.runPeriodicTasks(ctx, reportTicker)
+	go s.runPeriodicTasks(ctx)
+
 	log.Println("Scheduler started")
 }
 
 // Stop gracefully shuts down the scheduler
 func (s *Scheduler) Stop() {
-	s.done <- true
-	log.Println("Scheduler stopped")
+	s.updateTicker.Stop()
+	s.reportTicker.Stop()
 }
 
-// initializeSystem sets up the initial state of the system
+// initializeSystem initializes the system with initial burrows if none exist
 func (s *Scheduler) initializeSystem(ctx context.Context) error {
-	if err := s.repo.DeleteAllBurrows(ctx); err != nil {
-		return fmt.Errorf("failed to clear database: %w", err)
+	// Check if we have any existing burrows
+	existingBurrows, err := s.repo.GetAllBurrows(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check existing burrows: %w", err)
 	}
-	return s.loadInitialBurrows(ctx)
+
+	if len(existingBurrows) > 0 {
+		s.handleExistingBurrowsOnStart(ctx, existingBurrows)
+	}
+
+	return nil
 }
 
-// runPeriodicTasks executes the scheduled tasks
-func (s *Scheduler) runPeriodicTasks(ctx context.Context, reportTicker *time.Ticker) {
-	defer reportTicker.Stop()
+func (s *Scheduler) runPeriodicTasks(ctx context.Context) {
 	for {
 		select {
-		case <-reportTicker.C:
+		case <-s.reportTicker.C:
 			if err := s.generateReport(); err != nil {
 				log.Printf("Error generating report: %v", err)
 			}
-		case <-s.ticker.C:
+		case <-s.updateTicker.C:
 			if err := s.updateBurrows(ctx); err != nil {
 				log.Printf("Error updating burrows: %v", err)
 			}
-		case <-s.done:
-			s.ticker.Stop()
-			return
 		}
 	}
 }
@@ -240,5 +245,41 @@ func (s *Scheduler) loadInitialBurrows(ctx context.Context) error {
 	}
 
 	log.Printf("Loaded %d initial burrows", len(createdBurrows))
+	return nil
+}
+
+// handleExistingBurrowsOnStart processes existing burrows when the system starts
+func (s *Scheduler) handleExistingBurrowsOnStart(ctx context.Context, burrows []*ent.Burrow) error {
+	now := time.Now()
+	log.Printf("Processing %d existing burrows on startup", len(burrows))
+
+	for _, b := range burrows {
+		timePassed := now.Sub(b.UpdatedAt)
+		minutesPassed := int(timePassed.Minutes())
+		newAge := b.Age + minutesPassed
+
+		// If burrow is older than 25 days, delete it
+		if newAge/(60*24) >= s.config.MaxBurrowAge {
+			if err := s.handleOldBurrow(ctx, b); err != nil {
+				log.Printf("Failed to delete old burrow %d: %v", b.ID, err)
+				continue
+			}
+			continue
+		}
+
+		// Calculate new depth based on time passed (0.09 meters per minute)
+		depthIncrease := float64(minutesPassed) * 0.09
+		newDepth := b.Depth + depthIncrease
+
+		// Update the burrow with new age and depth
+		if err := s.repo.UpdateBurrowDepth(ctx, int64(b.ID), newDepth); err != nil {
+			log.Printf("Failed to update burrow %d: %v", b.ID, err)
+			continue
+		}
+
+		log.Printf("Updated burrow %d: age +%d minutes, depth +%.2f meters",
+			b.ID, minutesPassed, depthIncrease)
+	}
+
 	return nil
 }
