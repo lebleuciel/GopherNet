@@ -138,18 +138,18 @@ func (mr *MockIBurrowRepositoryMockRecorder) GetOccupiedBurrows(ctx interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOccupiedBurrows", reflect.TypeOf((*MockIBurrowRepository)(nil).GetOccupiedBurrows), ctx)
 }
 
-// UpdateBurrowDepth mocks base method.
-func (m *MockIBurrowRepository) UpdateBurrowDepth(ctx context.Context, id int64, depth float64) error {
+// UpdateBurrow mocks base method.
+func (m *MockIBurrowRepository) UpdateBurrow(ctx context.Context, id int64, depth float64, age int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBurrowDepth", ctx, id, depth)
+	ret := m.ctrl.Call(m, "UpdateBurrow", ctx, id, depth, age)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateBurrowDepth indicates an expected call of UpdateBurrowDepth.
-func (mr *MockIBurrowRepositoryMockRecorder) UpdateBurrowDepth(ctx, id, depth interface{}) *gomock.Call {
+// UpdateBurrow indicates an expected call of UpdateBurrow.
+func (mr *MockIBurrowRepositoryMockRecorder) UpdateBurrow(ctx, id, depth, age interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBurrowDepth", reflect.TypeOf((*MockIBurrowRepository)(nil).UpdateBurrowDepth), ctx, id, depth)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBurrow", reflect.TypeOf((*MockIBurrowRepository)(nil).UpdateBurrow), ctx, id, depth, age)
 }
 
 // UpdateBurrowOccupancy mocks base method.

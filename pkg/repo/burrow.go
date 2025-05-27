@@ -16,7 +16,7 @@ type IBurrowRepository interface {
 	GetOccupiedBurrows(ctx context.Context) ([]*ent.Burrow, error)
 	GetBurrowByID(ctx context.Context, id int) (*ent.Burrow, error)
 	UpdateBurrowOccupancy(ctx context.Context, id int, isOccupied bool) error
-	UpdateBurrowDepth(ctx context.Context, id int64, depth float64) error
+	UpdateBurrow(ctx context.Context, id int64, depth float64, age int) error
 	DeleteBurrow(ctx context.Context, id int64) error
 	CreateBurrow(ctx context.Context, name string, depth float64, width float64, isOccupied bool, age int) (*ent.Burrow, error)
 	CreateBurrows(ctx context.Context, burrows []*ent.Burrow) ([]*ent.Burrow, error)
@@ -46,15 +46,15 @@ func (r *BurrowRepository) GetOccupiedBurrows(ctx context.Context) ([]*ent.Burro
 	return burrows, nil
 }
 
-// UpdateBurrowDepth updates a burrow's depth and increments its age
-func (r *BurrowRepository) UpdateBurrowDepth(ctx context.Context, id int64, depth float64) error {
+// UpdateBurrow updates a burrow's depth and increments its age
+func (r *BurrowRepository) UpdateBurrow(ctx context.Context, id int64, depth float64, age int) error {
 	_, err := r.db.EntClient().Burrow.UpdateOneID(int(id)).
 		SetDepth(depth).
-		AddAge(1). // Increment age by 1 minute
+		SetAge(age).
 		SetUpdatedAt(time.Now()).
 		Save(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to update burrow depth: %w", err)
+		return fmt.Errorf("failed to update burrow: %w", err)
 	}
 	return nil
 }

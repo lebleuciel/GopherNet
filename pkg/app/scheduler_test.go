@@ -12,6 +12,13 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
+var testConfig = &config.Scheduler{
+	UpdateInterval:     time.Minute,
+	ReportInterval:     time.Hour,
+	MaxBurrowAge:       25 * 24 * 60, // 25 days in minutes
+	DepthIncrementRate: 0.009,        // meters per minute
+}
+
 func TestHandleExistingBurrowsOnStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -38,9 +45,6 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			expectedCount: 0,
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
-					GetAllBurrows(gomock.Any()).
-					Return([]*ent.Burrow{}, nil)
-				mock.EXPECT().
 					DeleteBurrow(gomock.Any(), int64(1)).
 					Return(nil)
 			},
@@ -58,21 +62,10 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			},
 			expectedCount: 1,
 			checkDepth:    true,
-			expectedDepth: 5.0 + (60 * 0.09), // Initial depth + (minutes * rate)
+			expectedDepth: 5.0 + (60 * testConfig.DepthIncrementRate), // Initial depth + (minutes * rate)
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
-					GetAllBurrows(gomock.Any()).
-					Return([]*ent.Burrow{
-						{
-							ID:        1,
-							Name:      "Young Burrow",
-							Depth:     5.0 + (60 * 0.09),
-							Age:       60,
-							UpdatedAt: time.Now(),
-						},
-					}, nil)
-				mock.EXPECT().
-					UpdateBurrowDepth(gomock.Any(), int64(1), 5.0+(60*0.09)).
+					UpdateBurrow(gomock.Any(), int64(1), 5.0+(60*testConfig.DepthIncrementRate), 60).
 					Return(nil)
 			},
 		},
@@ -96,24 +89,13 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			},
 			expectedCount: 1,
 			checkDepth:    true,
-			expectedDepth: 5.0 + (60 * 0.09),
+			expectedDepth: 5.0 + (60 * testConfig.DepthIncrementRate),
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
-				mock.EXPECT().
-					GetAllBurrows(gomock.Any()).
-					Return([]*ent.Burrow{
-						{
-							ID:        2,
-							Name:      "Young Burrow",
-							Depth:     5.0 + (60 * 0.09),
-							Age:       60,
-							UpdatedAt: time.Now(),
-						},
-					}, nil)
 				mock.EXPECT().
 					DeleteBurrow(gomock.Any(), int64(1)).
 					Return(nil)
 				mock.EXPECT().
-					UpdateBurrowDepth(gomock.Any(), int64(2), 5.0+(60*0.09)).
+					UpdateBurrow(gomock.Any(), int64(2), 5.0+(60*testConfig.DepthIncrementRate), 60).
 					Return(nil)
 			},
 		},
@@ -124,7 +106,7 @@ func TestHandleExistingBurrowsOnStart(t *testing.T) {
 			// Setup
 			mockRepo := mocks.NewMockIBurrowRepository(ctrl)
 			tt.setupMock(mockRepo)
-			scheduler := NewScheduler(mockRepo, &config.DefaultScheduler)
+			scheduler := NewScheduler(mockRepo, testConfig)
 
 			// Execute
 			err := scheduler.handleExistingBurrowsOnStart(context.Background(), tt.initialBurrows)
@@ -147,7 +129,7 @@ func TestUpdateBurrows(t *testing.T) {
 		setupMock      func(*mocks.MockIBurrowRepository)
 	}{
 		{
-			name: "should update occupied burrow depth",
+			name: "should update occupied burrow",
 			initialBurrows: []*ent.Burrow{
 				{
 					ID:         1,
@@ -158,7 +140,7 @@ func TestUpdateBurrows(t *testing.T) {
 					UpdatedAt:  time.Now(),
 				},
 			},
-			expectedDepth: 5.0 + config.DefaultScheduler.DepthIncrement,
+			expectedDepth: 5.0 + testConfig.DepthIncrementRate,
 			setupMock: func(mock *mocks.MockIBurrowRepository) {
 				mock.EXPECT().
 					GetOccupiedBurrows(gomock.Any()).
@@ -173,7 +155,7 @@ func TestUpdateBurrows(t *testing.T) {
 						},
 					}, nil)
 				mock.EXPECT().
-					UpdateBurrowDepth(gomock.Any(), int64(1), 5.0+config.DefaultScheduler.DepthIncrement).
+					UpdateBurrow(gomock.Any(), int64(1), 5.0+testConfig.DepthIncrementRate, 1).
 					Return(nil)
 			},
 		},
@@ -203,13 +185,82 @@ func TestUpdateBurrows(t *testing.T) {
 			// Setup
 			mockRepo := mocks.NewMockIBurrowRepository(ctrl)
 			tt.setupMock(mockRepo)
-			scheduler := NewScheduler(mockRepo, &config.DefaultScheduler)
+			scheduler := NewScheduler(mockRepo, testConfig)
 
 			// Execute
 			err := scheduler.updateBurrows(context.Background())
 			if err != nil {
 				t.Errorf("updateBurrows() error = %v", err)
 				return
+			}
+		})
+	}
+}
+
+func TestCalculateBurrowStats(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		name          string
+		burrows       []*ent.Burrow
+		expectedStats BurrowStats
+	}{
+		{
+			name:    "should handle empty burrows",
+			burrows: []*ent.Burrow{},
+			expectedStats: BurrowStats{
+				SmallestVolume: 0,
+				LargestVolume:  0,
+				AvailableCount: 0,
+			},
+		},
+		{
+			name: "should calculate stats for valid burrows",
+			burrows: []*ent.Burrow{
+				{
+					ID:         1,
+					Name:       "Burrow 1",
+					Depth:      5.0,
+					Width:      2.0,
+					IsOccupied: true,
+				},
+				{
+					ID:         2,
+					Name:       "Burrow 2",
+					Depth:      10.0,
+					Width:      3.0,
+					IsOccupied: false,
+				},
+			},
+			expectedStats: BurrowStats{
+				TotalDepth:     15.0,
+				AvailableCount: 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockIBurrowRepository(ctrl)
+			scheduler := NewScheduler(mockRepo, testConfig)
+
+			stats := scheduler.calculateBurrowStats(tt.burrows)
+
+			if tt.name == "should handle empty burrows" {
+				if stats.SmallestVolume != tt.expectedStats.SmallestVolume ||
+					stats.LargestVolume != tt.expectedStats.LargestVolume ||
+					stats.AvailableCount != tt.expectedStats.AvailableCount {
+					t.Errorf("calculateBurrowStats() = %+v, want %+v", stats, tt.expectedStats)
+				}
+			} else {
+				if stats.TotalDepth != tt.expectedStats.TotalDepth ||
+					stats.AvailableCount != tt.expectedStats.AvailableCount {
+					t.Errorf("calculateBurrowStats() = %+v, want %+v", stats, tt.expectedStats)
+				}
+				if stats.LargestBurrow == nil || stats.SmallestBurrow == nil {
+					t.Error("calculateBurrowStats() should set largest and smallest burrows")
+				}
 			}
 		})
 	}

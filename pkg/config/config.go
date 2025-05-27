@@ -10,8 +10,8 @@ type Config struct {
 }
 
 type Scheduler struct {
-	ReportInterval time.Duration `mapstructure:"report_interval"`
-	UpdateInterval time.Duration `mapstructure:"update_interval"`
-	MaxBurrowAge   int           `mapstructure:"max_burrow_age"`
-	DepthIncrement float64       `mapstructure:"depth_increment"`
+	ReportInterval     time.Duration `mapstructure:"report_interval"`
+	UpdateInterval     time.Duration `mapstructure:"update_interval"`
+	MaxBurrowAge       int           `mapstructure:"max_burrow_age"`
+	DepthIncrementRate float64       `mapstructure:"depth_increment"`
 }

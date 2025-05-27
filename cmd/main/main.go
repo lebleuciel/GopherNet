@@ -62,6 +62,4 @@ func main() {
 	// Wait for interrupt signal
 	<-bgCtx.Done()
 	log.Println("Shutting down...")
-
-	log.Println("Server exiting")
 }

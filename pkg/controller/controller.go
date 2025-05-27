@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"gophernet/pkg/app"
-	"gophernet/pkg/models"
+	"gophernet/pkg/dto"
 
 	"github.com/gin-gonic/gin"
 )
@@ -51,24 +51,24 @@ func (g *GopherController) GetGopher(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Burrow ID"
-// @Success 200 {object} models.Burrow
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 409 {object} models.ErrorResponse
+// @Success 200 {object} dto.BurrowResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
 // @Router /burrows/{id}/rent [post]
 func (g *GopherController) RentBurrow(c *gin.Context) {
 	burrowIDStr := c.Param("id")
 	burrowID, err := strconv.Atoi(burrowIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "Invalid burrow ID"})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid burrow ID"})
 		return
 	}
 
 	burrow, err := g.gopherApp.RentBurrow(c.Request.Context(), burrowID)
 	if err != nil {
-		c.JSON(http.StatusConflict, models.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, models.Burrow{
+	c.JSON(http.StatusOK, dto.BurrowResponse{
 		ID:         burrow.ID,
 		Name:       burrow.Name,
 		Depth:      burrow.Depth,
@@ -84,24 +84,24 @@ func (g *GopherController) RentBurrow(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Burrow ID"
-// @Success 200 {object} models.Burrow
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 409 {object} models.ErrorResponse
+// @Success 200 {object} dto.BurrowResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
 // @Router /burrows/{id}/release [post]
 func (g *GopherController) ReleaseBurrow(c *gin.Context) {
 	burrowIDStr := c.Param("id")
 	burrowID, err := strconv.Atoi(burrowIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "Invalid burrow ID"})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid burrow ID"})
 		return
 	}
 
 	burrow, err := g.gopherApp.ReleaseBurrow(c.Request.Context(), burrowID)
 	if err != nil {
-		c.JSON(http.StatusConflict, models.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, models.Burrow{
+	c.JSON(http.StatusOK, dto.BurrowResponse{
 		ID:         burrow.ID,
 		Name:       burrow.Name,
 		Depth:      burrow.Depth,
@@ -116,19 +116,19 @@ func (g *GopherController) ReleaseBurrow(c *gin.Context) {
 // @Tags burrows
 // @Accept json
 // @Produce json
-// @Success 200 {array} models.Burrow
-// @Failure 500 {object} models.ErrorResponse
+// @Success 200 {array} dto.BurrowResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /burrows/status [get]
 func (g *GopherController) GetBurrowStatus(c *gin.Context) {
 	burrows, err := g.gopherApp.GetBurrowStatus(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "Failed to get burrow status"})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to get burrow status"})
 		return
 	}
 
-	var responseBurrows []models.Burrow
+	var responseBurrows []dto.BurrowResponse
 	for _, burrow := range burrows {
-		responseBurrows = append(responseBurrows, models.Burrow{
+		responseBurrows = append(responseBurrows, dto.BurrowResponse{
 			ID:         burrow.ID,
 			Name:       burrow.Name,
 			Depth:      burrow.Depth,
