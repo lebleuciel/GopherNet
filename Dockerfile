@@ -14,7 +14,7 @@ RUN go mod download
 
 COPY . .
 
-RUN make all
+RUN make setup
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o gophernet ./cmd/main
 

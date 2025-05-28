@@ -52,12 +52,7 @@ This single command will:
 
 1. Build the Docker image:
 ```bash
-docker build -t gophernet .
-```
-
-2. Run the container:
-```bash
-docker run -p 8080:8080 gophernet
+docker-compose up -d
 ```
 
 ## Data Persistence

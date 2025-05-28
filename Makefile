@@ -12,17 +12,20 @@ MAIN_PATH=./cmd/main
 MOCKGEN=mockgen
 MOCK_DIR=pkg/mocks
 
-.PHONY: all deps install-mockgen generate-mocks migrate run
+.PHONY: all deps install-mockgen generate-mocks migrate run setup build
 
 # Main setup command that handles everything
-all: deps install-mockgen generate-mocks migrate build
+all: setup run
+	@echo "Setup complete!"
+
+setup: deps install-mockgen generate-mocks migrate build
 	@echo "Setup complete!"
 
 # Dependencies
 deps:
 	$(GOMOD) download
 	$(GOMOD) tidy
-	
+
 # Migration commands
 migrate:
 	$(GOCMD) run -mod=mod entgo.io/ent/cmd/ent generate ./pkg/db/ent/schema
