@@ -22,13 +22,13 @@ A modern platform for managing and monitoring gopher burrow rentals. GopherNet p
 
 ## Prerequisites
 
-- Go 1.21 or higher
-- Docker and Docker Compose
-- PostgreSQL 14 or higher
+- Go 1.21 or later
+- Make
+- Docker (optional, for containerized deployment)
 
 ## Quick Start
 
-### Using Docker
+### Local Development
 
 1. Clone the repository:
 ```bash
@@ -36,29 +36,28 @@ git clone https://github.com/lebleuciel/GopherNet
 cd gophernet
 ```
 
-2. Start the services:
+2. Run the setup command (this will handle everything):
 ```bash
-make docker-up
+make all
 ```
 
-3. The API will be available at `http://localhost:8080`
+This single command will:
+- Install all Go dependencies
+- Install mockgen tool
+- Generate mocks
+- Run ent migrations
+- Build and run the application
 
-### Manual Setup
+### Docker Deployment
 
-1. Install dependencies:
+1. Build the Docker image:
 ```bash
-make deps
+docker build -t gophernet .
 ```
 
-2. Set up the database:
+2. Run the container:
 ```bash
-make db-create
-```
-
-3. Build and run:
-```bash
-make build
-make run
+docker run -p 8080:8080 gophernet
 ```
 
 ## Data Persistence
@@ -211,6 +210,14 @@ The system comes with a set of initial burrows. Here's the sample `initial.json`
 ├── docs/           # Documentation
 └── server/         # HTTP server setup
 ```
+
+## Development
+
+The project uses several tools that are automatically handled by the setup process:
+
+- **ent**: For database schema and migrations
+- **mockgen**: For generating mock interfaces
+- **swag**: For Swagger documentation
 
 ## License
 

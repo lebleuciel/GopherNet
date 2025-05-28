@@ -4,14 +4,17 @@
 FROM golang:1.23-alpine AS builder
 WORKDIR /app
 
+RUN apk add --no-cache make
+
 RUN go install github.com/swaggo/swag/cmd/swag@latest
+RUN go install github.com/golang/mock/mockgen@latest && ln -s /go/bin/mockgen /usr/local/bin/mockgen
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN swag init -g cmd/main/main.go -o docs
+RUN make all
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o gophernet ./cmd/main
 
