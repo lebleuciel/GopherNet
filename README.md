@@ -133,7 +133,7 @@ database:
   database: gophernet
 
 scheduler:
-  report_interval: 2m
+  report_interval: 10m
   update_interval: 1m
   max_burrow_age: 1440
   depth_increment: 0.009
