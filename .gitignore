@@ -44,10 +44,6 @@ build/
 tmp/
 temp/
 
-# Generated files
-ent/
-*.gen.go
-*.pb.go
 
 # Debug files
 debug
