@@ -81,8 +81,9 @@ func (s *Scheduler) initializeSystem(ctx context.Context) error {
 	}
 
 	if len(existingBurrows) > 0 {
-		s.BulkBorrowUpdate(ctx, existingBurrows)
+		return s.BulkBorrowUpdate(ctx, existingBurrows)
 	}
+
 	return s.loadInitialBurrows(ctx)
 }
 
@@ -240,23 +241,11 @@ func (s *Scheduler) loadInitialBurrows(ctx context.Context) error {
 // handleExistingBurrowsOnStart processes existing burrows when the system starts
 func (s *Scheduler) BulkBorrowUpdate(ctx context.Context, burrows []*ent.Burrow) error {
 	for _, b := range burrows {
-		if b.IsOccupied {
-			// Update the burrow with new age and depth
-			if err := s.UpdateBurrow(ctx, b); err != nil {
-				s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
-				continue
-			}
-		} else {
-			// For unoccupied burrows, only update age
-			newAge := b.Age + 1
-			if b.Age >= s.config.MaxBurrowAge {
-				s.handleOldBurrow(ctx, b)
-				continue
-			}
-			if err := s.repo.UpdateBurrow(ctx, int64(b.ID), b.Depth, newAge); err != nil {
-				s.log.Error("Failed to update unoccupied burrow age", zap.Int("burrow_id", b.ID), zap.Error(err))
-				continue
-			}
+
+		// Update the burrow with new age and depth
+		if err := s.UpdateBurrow(ctx, b); err != nil {
+			s.log.Error("Failed to update burrow", zap.Int("burrow_id", b.ID), zap.Error(err))
+			continue
 		}
 	}
 	return nil
@@ -265,20 +254,28 @@ func (s *Scheduler) BulkBorrowUpdate(ctx context.Context, burrows []*ent.Burrow)
 func (s *Scheduler) UpdateBurrow(ctx context.Context, burrow *ent.Burrow) error {
 	now := time.Now()
 	timePassed := now.Sub(burrow.UpdatedAt)
-	minutesPassed := int(timePassed.Minutes())
-	newAge := burrow.Age + minutesPassed
+	if timePassed < s.config.UpdateInterval {
+		return nil
+	}
 
+	count := int(timePassed / s.config.UpdateInterval)
+	newAge := burrow.Age + count
 	if burrow.Age >= s.config.MaxBurrowAge {
 		err := s.handleOldBurrow(ctx, burrow)
 		if err != nil {
 			return err
 		}
 	}
-	// Calculate new depth based on time passed
-	depthIncrease := float64(minutesPassed) * s.config.DepthIncrementRate
-	newDepth := burrow.Depth + depthIncrease
 
-	if err := s.repo.UpdateBurrow(ctx, int64(burrow.ID), newDepth, newAge); err != nil {
+	newDepth := burrow.Depth
+
+	if burrow.IsOccupied {
+		// Calculate new depth based on time passed
+		depthIncrease := float64(count) * s.config.DepthIncrementRate
+		newDepth += depthIncrease
+	}
+
+	if err := s.repo.UpdateBurrow(ctx, int64(burrow.ID), newDepth, newAge, burrow.UpdatedAt.Add(time.Duration(count)*s.config.UpdateInterval)); err != nil {
 		return fmt.Errorf("error updating burrow %d: %w", burrow.ID, err)
 	}
 

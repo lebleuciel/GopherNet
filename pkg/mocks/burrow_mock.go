@@ -8,6 +8,7 @@ import (
 	context "context"
 	ent "gophernet/pkg/db/ent"
 	reflect "reflect"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -139,17 +140,17 @@ func (mr *MockIBurrowRepositoryMockRecorder) GetOccupiedBurrows(ctx interface{})
 }
 
 // UpdateBurrow mocks base method.
-func (m *MockIBurrowRepository) UpdateBurrow(ctx context.Context, id int64, depth float64, age int) error {
+func (m *MockIBurrowRepository) UpdateBurrow(ctx context.Context, id int64, depth float64, age int, now time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBurrow", ctx, id, depth, age)
+	ret := m.ctrl.Call(m, "UpdateBurrow", ctx, id, depth, age, now)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateBurrow indicates an expected call of UpdateBurrow.
-func (mr *MockIBurrowRepositoryMockRecorder) UpdateBurrow(ctx, id, depth, age interface{}) *gomock.Call {
+func (mr *MockIBurrowRepositoryMockRecorder) UpdateBurrow(ctx, id, depth, age, now interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBurrow", reflect.TypeOf((*MockIBurrowRepository)(nil).UpdateBurrow), ctx, id, depth, age)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBurrow", reflect.TypeOf((*MockIBurrowRepository)(nil).UpdateBurrow), ctx, id, depth, age, now)
 }
 
 // UpdateBurrowOccupancy mocks base method.
