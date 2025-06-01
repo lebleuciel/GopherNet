@@ -67,6 +67,7 @@ func (s *Server) registerRoutes() {
 	{
 		burrowRoutes := v1.Group("/burrows")
 		{
+			burrowRoutes.GET("/:id", s.handler.GetBurrow)
 			burrowRoutes.POST("/:id/rent", s.handler.RentBurrow)
 			burrowRoutes.POST("/:id/release", s.handler.ReleaseBurrow)
 			burrowRoutes.GET("/status", s.handler.GetBurrowStatus)
